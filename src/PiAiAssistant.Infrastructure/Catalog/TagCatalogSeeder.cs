@@ -2,8 +2,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace PiAiAssistant.Infrastructure.Catalog;
 
+/// <summary>
+/// Seeds the SQLite tag catalog with NuGreen demo tags matching Shirajum Munir's PI WebAPI Emulator.
+/// </summary>
 public static class TagCatalogSeeder
 {
+    public const string NuGreenAnchorCanonical = "Houston.B-210.Temperature";
+
     public static async Task SeedAsync(AppDbContext db, CancellationToken cancellationToken = default)
     {
         if (await db.Tags.AnyAsync(cancellationToken))
@@ -11,167 +16,173 @@ public static class TagCatalogSeeder
             return;
         }
 
+        await InsertNuGreenAsync(db, cancellationToken);
+    }
+
+    /// <summary>
+    /// Replaces legacy Plant1/SINUSOID demo catalog with NuGreen when switching to the emulator.
+    /// </summary>
+    public static async Task EnsureNuGreenCatalogAsync(AppDbContext db, CancellationToken cancellationToken = default)
+    {
+        var hasNuGreen = await db.Tags.AnyAsync(t => t.CanonicalName == NuGreenAnchorCanonical, cancellationToken);
+        if (hasNuGreen)
+        {
+            return;
+        }
+
+        db.Aliases.RemoveRange(db.Aliases);
+        db.Relationships.RemoveRange(db.Relationships);
+        db.Documentation.RemoveRange(db.Documentation);
+        db.Tags.RemoveRange(db.Tags);
+        await db.SaveChangesAsync(cancellationToken);
+        await InsertNuGreenAsync(db, cancellationToken);
+    }
+
+    private static async Task InsertNuGreenAsync(AppDbContext db, CancellationToken cancellationToken)
+    {
         var now = DateTime.UtcNow;
-        var boiler03 = new TagCatalogEntity
-        {
-            Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-            CanonicalName = "Plant1.Boiler03.SteamPressure",
-            DisplayName = "Boiler 03 Steam Pressure",
-            PiPointName = "B03_STEAM_PRESSURE",
-            AfAttributePath = @"\\AFSERVER\Production\Plant1\Boiler03|Steam Pressure",
-            DescriptionOverride = "Main steam pressure downstream of Boiler 03.",
-            EquipmentId = "BOILER-03",
-            OwnerTeam = "Boiler Operations",
-            Criticality = "High",
-            ExpectedMin = 38m,
-            ExpectedMax = 46m,
-            Unit = "bar(g)",
-            CreatedUtc = now,
-            UpdatedUtc = now,
-            Aliases =
-            [
-                new TagAliasEntityRow { Id = Guid.NewGuid(), Alias = "Boiler03.SteamPressure" },
-                new TagAliasEntityRow { Id = Guid.NewGuid(), Alias = "boiler 03 steam pressure" },
-                new TagAliasEntityRow { Id = Guid.NewGuid(), Alias = "B03 steam pressure" }
-            ]
-        };
 
-        var steamTemp = new TagCatalogEntity
+        TagCatalogEntity Tag(
+            string id,
+            string canonical,
+            string display,
+            string point,
+            string afPath,
+            string equipment,
+            string unit,
+            string description,
+            params string[] aliases)
         {
-            Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-            CanonicalName = "Plant1.Boiler03.SteamTemperature",
-            DisplayName = "Boiler 03 Steam Temperature",
-            PiPointName = "B03_STEAM_TEMP",
-            AfAttributePath = @"\\AFSERVER\Production\Plant1\Boiler03|Steam Temperature",
-            DescriptionOverride = "Main steam temperature at Boiler 03.",
-            EquipmentId = "BOILER-03",
-            OwnerTeam = "Boiler Operations",
-            Criticality = "High",
-            ExpectedMin = 480m,
-            ExpectedMax = 540m,
-            Unit = "degC",
-            CreatedUtc = now,
-            UpdatedUtc = now
-        };
+            return new TagCatalogEntity
+            {
+                Id = Guid.Parse(id),
+                CanonicalName = canonical,
+                DisplayName = display,
+                PiPointName = point,
+                PiWebId = $"pt_{point}",
+                AfAttributePath = afPath,
+                DescriptionOverride = description,
+                EquipmentId = equipment,
+                OwnerTeam = "NuGreen Operations",
+                Criticality = "Medium",
+                Unit = unit,
+                CreatedUtc = now,
+                UpdatedUtc = now,
+                Aliases = aliases
+                    .Select(a => new TagAliasEntityRow { Id = Guid.NewGuid(), Alias = a })
+                    .ToList()
+            };
+        }
 
-        var feedwater = new TagCatalogEntity
-        {
-            Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
-            CanonicalName = "Plant1.Boiler03.FeedWaterFlow",
-            DisplayName = "Boiler 03 Feedwater Flow",
-            PiPointName = "B03_FEEDWATER_FLOW",
-            DescriptionOverride = "Boiler 03 feedwater flow.",
-            EquipmentId = "BOILER-03",
-            OwnerTeam = "Boiler Operations",
-            Criticality = "Medium",
-            Unit = "t/h",
-            CreatedUtc = now,
-            UpdatedUtc = now
-        };
+        var houstonTemp = Tag(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1",
+            "Houston.B-210.Temperature",
+            "Houston B-210 Temperature",
+            "Houston.B-210.Temperature",
+            @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210|Temperature",
+            "B-210",
+            "°C",
+            "Boiler B-210 temperature at Houston NuGreen site.",
+            "B-210 Temperature", "Houston temperature");
 
-        var burner = new TagCatalogEntity
-        {
-            Id = Guid.Parse("44444444-4444-4444-4444-444444444444"),
-            CanonicalName = "Plant1.Boiler03.BurnerLoad",
-            DisplayName = "Boiler 03 Burner Load",
-            PiPointName = "B03_BURNER_LOAD",
-            DescriptionOverride = "Boiler 03 burner load.",
-            EquipmentId = "BOILER-03",
-            OwnerTeam = "Boiler Operations",
-            Criticality = "Medium",
-            Unit = "%",
-            CreatedUtc = now,
-            UpdatedUtc = now
-        };
+        var houstonPressure = Tag(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2",
+            "Houston.B-210.Pressure",
+            "Houston B-210 Pressure",
+            "Houston.B-210.Pressure",
+            @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210|Pressure",
+            "B-210",
+            "psi",
+            "Boiler B-210 pressure at Houston NuGreen site.",
+            "B-210 Pressure");
 
-        var boiler04 = new TagCatalogEntity
-        {
-            Id = Guid.Parse("55555555-5555-5555-5555-555555555555"),
-            CanonicalName = "Plant1.Boiler04.SteamPressure",
-            DisplayName = "Boiler 04 Steam Pressure",
-            PiPointName = "B04_STEAM_PRESSURE",
-            DescriptionOverride = "Main steam pressure downstream of Boiler 04.",
-            EquipmentId = "BOILER-04",
-            OwnerTeam = "Boiler Operations",
-            Criticality = "High",
-            ExpectedMin = 38m,
-            ExpectedMax = 46m,
-            Unit = "bar(g)",
-            CreatedUtc = now,
-            UpdatedUtc = now,
-            Aliases =
-            [
-                new TagAliasEntityRow { Id = Guid.NewGuid(), Alias = "Boiler04.SteamPressure" }
-            ]
-        };
+        var houstonSteam = Tag(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3",
+            "Houston.B-210.SteamFlow",
+            "Houston B-210 Steam Flow",
+            "Houston.B-210.SteamFlow",
+            @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210|Steam Flow",
+            "B-210",
+            "lb/hr",
+            "Boiler B-210 steam flow at Houston NuGreen site.");
 
-        var header = new TagCatalogEntity
-        {
-            Id = Guid.Parse("66666666-6666-6666-6666-666666666666"),
-            CanonicalName = "Plant1.Header.MainPressure",
-            DisplayName = "Main Steam Header Pressure",
-            PiPointName = "HEADER_STEAM_PRESSURE",
-            DescriptionOverride = "Main steam header pressure.",
-            EquipmentId = "HDR-MAIN",
-            OwnerTeam = "Steam Systems",
-            Criticality = "High",
-            Unit = "bar(g)",
-            CreatedUtc = now,
-            UpdatedUtc = now,
-            Aliases =
-            [
-                new TagAliasEntityRow { Id = Guid.NewGuid(), Alias = "Header.SteamPressure" }
-            ]
-        };
+        var houstonRpm = Tag(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4",
+            "Houston.C-110.RPM",
+            "Houston C-110 RPM",
+            "Houston.C-110.RPM",
+            @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\C-110|RPM",
+            "C-110",
+            "rpm",
+            "Compressor C-110 RPM at Houston.");
 
-        var sinusoid = new TagCatalogEntity
-        {
-            Id = Guid.Parse("77777777-7777-7777-7777-777777777777"),
-            CanonicalName = "SINUSOID",
-            DisplayName = "SINUSOID",
-            PiPointName = "SINUSOID",
-            DescriptionOverride = "Classic PI demo sine-wave tag.",
-            OwnerTeam = "PI Admins",
-            Criticality = "Low",
-            Unit = "deg",
-            CreatedUtc = now,
-            UpdatedUtc = now
-        };
+        var houstonVibration = Tag(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa5",
+            "Houston.C-110.Vibration",
+            "Houston C-110 Vibration",
+            "Houston.C-110.Vibration",
+            @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\C-110|Vibration",
+            "C-110",
+            "mil",
+            "Compressor C-110 vibration at Houston.");
 
-        db.Tags.AddRange(boiler03, steamTemp, feedwater, burner, boiler04, header, sinusoid);
+        var oaklandTemp = Tag(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6",
+            "Oakland.B-220.Temperature",
+            "Oakland B-220 Temperature",
+            "Oakland.B-220.Temperature",
+            @"\\AFServer1\NuGreen\Oakland\Cracking Process\Equipment\B-220|Temperature",
+            "B-220",
+            "°C",
+            "Boiler B-220 temperature at Oakland NuGreen site.",
+            "Oakland temperature");
+
+        var oaklandPressure = Tag(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7",
+            "Oakland.B-220.Pressure",
+            "Oakland B-220 Pressure",
+            "Oakland.B-220.Pressure",
+            @"\\AFServer1\NuGreen\Oakland\Cracking Process\Equipment\B-220|Pressure",
+            "B-220",
+            "psi",
+            "Boiler B-220 pressure at Oakland.");
+
+        db.Tags.AddRange(
+            houstonTemp, houstonPressure, houstonSteam, houstonRpm, houstonVibration,
+            oaklandTemp, oaklandPressure);
 
         db.Relationships.AddRange(
             new TagRelationshipEntity
             {
                 Id = Guid.NewGuid(),
-                FromCanonicalName = boiler03.CanonicalName,
-                ToCanonicalName = steamTemp.CanonicalName,
+                FromCanonicalName = houstonTemp.CanonicalName,
+                ToCanonicalName = houstonPressure.CanonicalName,
                 Relationship = "Associated process variable",
-                Description = "Temperature companion for steam pressure"
+                Description = "Pressure companion for B-210 temperature"
             },
             new TagRelationshipEntity
             {
                 Id = Guid.NewGuid(),
-                FromCanonicalName = boiler03.CanonicalName,
-                ToCanonicalName = feedwater.CanonicalName,
-                Relationship = "Upstream input",
-                Description = "Feedwater flow affecting steam generation"
+                FromCanonicalName = houstonTemp.CanonicalName,
+                ToCanonicalName = houstonSteam.CanonicalName,
+                Relationship = "Associated process variable",
+                Description = "Steam flow companion for B-210"
             },
             new TagRelationshipEntity
             {
                 Id = Guid.NewGuid(),
-                FromCanonicalName = boiler03.CanonicalName,
-                ToCanonicalName = burner.CanonicalName,
-                Relationship = "Operating-load indicator",
-                Description = "Burner load context for pressure"
+                FromCanonicalName = houstonRpm.CanonicalName,
+                ToCanonicalName = houstonVibration.CanonicalName,
+                Relationship = "Associated process variable",
+                Description = "Vibration companion for C-110 RPM"
             });
 
         db.Documentation.Add(new TagDocumentationEntity
         {
             Id = Guid.NewGuid(),
-            CanonicalName = boiler03.CanonicalName,
-            Title = "Operating note",
-            Body = "Expected operating range from the application metadata database: 38–46 bar(g).",
+            CanonicalName = houstonTemp.CanonicalName,
+            Title = "Emulator note",
+            Body = "NuGreen sample tag from the AVEVA PI WebAPI Emulator (AFServer1 / PIServer1).",
             Source = "TagDocumentation"
         });
 

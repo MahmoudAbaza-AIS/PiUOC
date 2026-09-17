@@ -115,6 +115,11 @@ public static class DependencyInjection
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.EnsureCreatedAsync(cancellationToken);
         await TagCatalogSeeder.SeedAsync(db, cancellationToken);
+        await TagCatalogSeeder.EnsureNuGreenCatalogAsync(db, cancellationToken);
+
+        // Backfill PI WebIds into SQLite so AI tools resolve streams from the catalog DB.
+        var sync = scope.ServiceProvider.GetRequiredService<ITagCatalogSyncService>();
+        await sync.SyncPiIdentitiesAsync(cancellationToken);
     }
 
     private static IChatClient CreateOllamaChatClient(OllamaOptions ollama)

@@ -7,20 +7,35 @@ public sealed class TagCatalogRepository(AppDbContext db) : ITagCatalogRepositor
 {
     public async Task<TagCatalogItem?> FindByAliasAsync(string alias, CancellationToken cancellationToken = default)
     {
-        var row = await db.Aliases
+        var normalized = alias.Trim().ToLowerInvariant();
+        var tagId = await db.Aliases
             .AsNoTracking()
-            .Include(a => a.Tag)
-            .FirstOrDefaultAsync(a => a.Alias == alias, cancellationToken);
+            .Where(a => a.Alias.ToLower() == normalized)
+            .Select(a => (Guid?)a.TagCatalogId)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        return row?.Tag is null ? null : Map(row.Tag);
+        if (tagId is null)
+        {
+            return null;
+        }
+
+        var row = await db.Tags
+            .AsNoTracking()
+            .Include(t => t.Aliases)
+            .FirstOrDefaultAsync(t => t.Id == tagId && t.IsEnabled, cancellationToken);
+
+        return row is null ? null : Map(row);
     }
 
     public async Task<TagCatalogItem?> FindByCanonicalNameAsync(string canonicalName, CancellationToken cancellationToken = default)
     {
+        var normalized = canonicalName.Trim().ToLowerInvariant();
         var row = await db.Tags
             .AsNoTracking()
             .Include(t => t.Aliases)
-            .FirstOrDefaultAsync(t => t.CanonicalName == canonicalName && t.IsEnabled, cancellationToken);
+            .FirstOrDefaultAsync(
+                t => t.CanonicalName.ToLower() == normalized && t.IsEnabled,
+                cancellationToken);
 
         return row is null ? null : Map(row);
     }
@@ -42,6 +57,51 @@ public sealed class TagCatalogRepository(AppDbContext db) : ITagCatalogRepositor
             .ToListAsync(cancellationToken);
 
         return rows.Select(Map).ToList();
+    }
+
+    public async Task<IReadOnlyList<TagCatalogItem>> ListEnabledAsync(
+        int maxResults = 200,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await db.Tags
+            .AsNoTracking()
+            .Include(t => t.Aliases)
+            .Where(t => t.IsEnabled)
+            .OrderBy(t => t.CanonicalName)
+            .Take(Math.Clamp(maxResults, 1, 500))
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(Map).ToList();
+    }
+
+    public async Task UpdatePiIdentityAsync(
+        string canonicalName,
+        string? piPointName,
+        string? piWebId,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = canonicalName.Trim().ToLowerInvariant();
+        var row = await db.Tags.FirstOrDefaultAsync(
+            t => t.CanonicalName.ToLower() == normalized,
+            cancellationToken);
+
+        if (row is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(piPointName))
+        {
+            row.PiPointName = piPointName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(piWebId))
+        {
+            row.PiWebId = piWebId;
+        }
+
+        row.UpdatedUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<TagRelationshipItem>> GetRelationshipsAsync(

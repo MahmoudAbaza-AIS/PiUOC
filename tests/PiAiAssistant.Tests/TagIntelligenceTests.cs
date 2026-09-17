@@ -28,7 +28,8 @@ public class TagIntelligenceTests
         {
             o.UseDemoMode = true;
             o.AuthMode = "Demo";
-            o.SampleTagNames = ["SINUSOID", "B03_STEAM_PRESSURE"];
+            o.DataArchiveName = "PIServer1";
+            o.SampleTagNames = ["Houston.B-210.Temperature", "Houston.B-210.Pressure"];
         });
         services.AddSingleton<DemoPiDataSource>();
         services.AddSingleton<IPiConnectivity>(sp => sp.GetRequiredService<DemoPiDataSource>());
@@ -57,15 +58,15 @@ public class TagIntelligenceTests
         await using var scope = sp.CreateAsyncScope();
 
         var svc = scope.ServiceProvider.GetRequiredService<ITagIntelligenceService>();
-        var result = await svc.GetTagDetailsAsync("Plant1.Boiler03.SteamPressure");
+        var result = await svc.GetTagDetailsAsync("Houston.B-210.Temperature");
 
         Assert.Equal(TagResolutionStatus.Found, result.Status);
         Assert.NotNull(result.Details);
-        Assert.Equal("B03_STEAM_PRESSURE", result.Details!.PiPointName);
-        Assert.Equal("bar(g)", result.Details.EngineeringUnits);
+        Assert.Equal("Houston.B-210.Temperature", result.Details!.PiPointName);
+        Assert.Equal("°C", result.Details.EngineeringUnits);
         Assert.NotNull(result.Details.CurrentValue);
-        Assert.Contains(result.Details.RelatedTags, r => r.Name.Contains("SteamTemperature"));
-        Assert.Contains(result.Details.BusinessMetadata, b => b.Key == "ExpectedMin");
+        Assert.Contains(result.Details.RelatedTags, r => r.Name.Contains("Pressure", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Details.BusinessMetadata, b => b.Key == "OwnerTeam");
     }
 
     [Fact]
@@ -77,10 +78,10 @@ public class TagIntelligenceTests
         await using var scope = sp.CreateAsyncScope();
 
         var resolver = scope.ServiceProvider.GetRequiredService<ITagResolver>();
-        var result = await resolver.ResolveAsync("Boiler03.SteamPressure");
+        var result = await resolver.ResolveAsync("B-210 Temperature");
 
         Assert.Equal(TagResolutionStatus.Found, result.Status);
-        Assert.Equal("Plant1.Boiler03.SteamPressure", result.Tag!.CanonicalName);
+        Assert.Equal("Houston.B-210.Temperature", result.Tag!.CanonicalName);
     }
 
     [Fact]
@@ -92,7 +93,7 @@ public class TagIntelligenceTests
         await using var scope = sp.CreateAsyncScope();
 
         var svc = scope.ServiceProvider.GetRequiredService<ITagIntelligenceService>();
-        var hits = await svc.SearchTagsAsync("SteamPressure", 10);
+        var hits = await svc.SearchTagsAsync("Pressure", 10);
 
         Assert.True(hits.Count >= 2);
     }
@@ -109,5 +110,61 @@ public class TagIntelligenceTests
         var result = await svc.GetTagDetailsAsync("DOES_NOT_EXIST_TAG_XYZ");
 
         Assert.Equal(TagResolutionStatus.NotFound, result.Status);
+    }
+
+    [Fact]
+    public async Task ListCatalogTags_ReturnsSeededCanonicalNames()
+    {
+        var (sp, connection) = await BuildAsync();
+        await using var _ = connection;
+        await using var provider = sp;
+        await using var scope = sp.CreateAsyncScope();
+
+        var svc = scope.ServiceProvider.GetRequiredService<ITagIntelligenceService>();
+        var tags = await svc.ListCatalogTagsAsync();
+
+        Assert.Contains(tags, t => t.CanonicalName == "Houston.B-210.Temperature");
+        Assert.Contains(tags, t => t.CanonicalName == "Oakland.B-220.Temperature");
+    }
+
+    [Fact]
+    public async Task SyncCatalog_BackfillsMissingPiWebIds()
+    {
+        var (sp, connection) = await BuildAsync();
+        await using var _ = connection;
+        await using var provider = sp;
+        await using var scope = sp.CreateAsyncScope();
+
+        var catalog = scope.ServiceProvider.GetRequiredService<ITagCatalogRepository>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.Tags.FirstAsync(t => t.CanonicalName == "Houston.B-210.Temperature");
+        row.PiWebId = "DEMO_STALE";
+        await db.SaveChangesAsync();
+
+        var sync = scope.ServiceProvider.GetRequiredService<ITagCatalogSyncService>();
+        var result = await sync.SyncPiIdentitiesAsync();
+
+        Assert.True(result.Updated >= 1);
+        var refreshed = await catalog.FindByCanonicalNameAsync("Houston.B-210.Temperature");
+        Assert.False(string.IsNullOrWhiteSpace(refreshed?.PiWebId));
+        Assert.NotEqual("DEMO_STALE", refreshed!.PiWebId);
+    }
+
+    [Fact]
+    public async Task GetTagHistory_UsesCatalogResolvedPoint()
+    {
+        var (sp, connection) = await BuildAsync();
+        await using var _ = connection;
+        await using var provider = sp;
+        await using var scope = sp.CreateAsyncScope();
+
+        var sync = scope.ServiceProvider.GetRequiredService<ITagCatalogSyncService>();
+        await sync.SyncPiIdentitiesAsync();
+
+        var svc = scope.ServiceProvider.GetRequiredService<ITagIntelligenceService>();
+        var history = await svc.GetTagHistoryAsync("B-210 Temperature");
+
+        Assert.Equal(TagResolutionStatus.Found, history.Status);
+        Assert.NotEmpty(history.Values);
     }
 }

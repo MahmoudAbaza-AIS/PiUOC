@@ -56,13 +56,27 @@ public sealed class TagIntelligenceService(
             point = await points.FindByNameAsync(resolved.CanonicalName, cancellationToken);
         }
 
-        var webId = point?.WebId ?? attribute?.WebId ?? resolved.WebId ?? catalogItem?.PiWebId;
+        // Prefer PI point WebId over AF attribute WebId for stream reads.
+        // Catalog PiWebId (synced into SQLite) is the offline identity fallback.
+        var webId = point?.WebId
+                    ?? PreferPointWebId(catalogItem?.PiWebId, resolved.WebId)
+                    ?? PreferPointWebId(attribute?.WebId, null);
+
         TagCurrentValueDto? current = null;
         IReadOnlyList<TagValueDto> recent = [];
 
-        if (options.IncludeCurrentValue && !string.IsNullOrWhiteSpace(webId))
+        if (options.IncludeCurrentValue)
         {
-            var snap = await values.GetCurrentByWebIdAsync(webId, cancellationToken);
+            Domain.Entities.TagSample? snap = null;
+            if (!string.IsNullOrWhiteSpace(webId))
+            {
+                snap = await values.GetCurrentByWebIdAsync(webId, cancellationToken);
+            }
+            else if (!string.IsNullOrWhiteSpace(pointName))
+            {
+                snap = await values.GetCurrentByNameAsync(pointName, cancellationToken);
+            }
+
             if (snap is not null)
             {
                 current = new TagCurrentValueDto(
@@ -89,15 +103,28 @@ public sealed class TagIntelligenceService(
             }
         }
 
-        if (options.IncludeRecentValues && !string.IsNullOrWhiteSpace(webId))
+        if (options.IncludeRecentValues)
         {
             var limit = Math.Clamp(options.RecentValueLimit, 1, 100);
-            var history = await values.GetRecordedByWebIdAsync(
-                webId,
-                options.RecentStartTime,
-                "*",
-                limit,
-                cancellationToken);
+            IReadOnlyList<Domain.Entities.TagSample> history = [];
+            if (!string.IsNullOrWhiteSpace(webId))
+            {
+                history = await values.GetRecordedByWebIdAsync(
+                    webId,
+                    options.RecentStartTime,
+                    "*",
+                    limit,
+                    cancellationToken);
+            }
+            else if (!string.IsNullOrWhiteSpace(pointName))
+            {
+                history = await values.GetRecordedByNameAsync(
+                    pointName,
+                    options.RecentStartTime,
+                    "*",
+                    limit,
+                    cancellationToken);
+            }
 
             recent = history
                 .Select(v => new TagValueDto(v.TimestampUtc, v.Value, v.Status))
@@ -248,18 +275,33 @@ public sealed class TagIntelligenceService(
             cancellationToken);
 
         var webId = details.Details?.WebId;
-        if (string.IsNullOrWhiteSpace(webId))
+        var pointName = details.Details?.PiPointName ?? resolution.Tag.PiPointName;
+        IReadOnlyList<Domain.Entities.TagSample> samples;
+
+        if (!string.IsNullOrWhiteSpace(webId))
         {
-            warnings.Add("Resolved tag has no WebId for stream history.");
+            samples = await values.GetRecordedByWebIdAsync(
+                webId,
+                start.ToString("O"),
+                end.ToString("O"),
+                maxCount,
+                cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(pointName))
+        {
+            warnings.Add("Using PI point name because catalog/PI WebId was missing.");
+            samples = await values.GetRecordedByNameAsync(
+                pointName,
+                start.ToString("O"),
+                end.ToString("O"),
+                maxCount,
+                cancellationToken);
+        }
+        else
+        {
+            warnings.Add("Resolved tag has no WebId or PI point name for stream history.");
             return new TagHistoryResult(TagResolutionStatus.Error, resolution.Tag.CanonicalName, [], [], "No WebId.", warnings);
         }
-
-        var samples = await values.GetRecordedByWebIdAsync(
-            webId,
-            start.ToString("O"),
-            end.ToString("O"),
-            maxCount,
-            cancellationToken);
 
         return new TagHistoryResult(
             TagResolutionStatus.Found,
@@ -415,6 +457,22 @@ public sealed class TagIntelligenceService(
             .ToList();
     }
 
+    public async Task<IReadOnlyList<TagCandidate>> ListCatalogTagsAsync(
+        int maxResults = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await catalog.ListEnabledAsync(Math.Clamp(maxResults, 1, 100), cancellationToken);
+        return rows
+            .Select(h => new TagCandidate(
+                h.CanonicalName,
+                h.DescriptionOverride ?? h.DisplayName,
+                h.AfAttributePath,
+                h.PiPointName,
+                h.PiWebId,
+                "TagCatalog"))
+            .ToList();
+    }
+
     private static double? ToNullableDouble(object? value) => value switch
     {
         null => null,
@@ -426,4 +484,21 @@ public sealed class TagIntelligenceService(
         string s when double.TryParse(s, out var parsed) => parsed,
         _ => null
     };
+
+    /// <summary>
+    /// Prefer catalog/point WebIds; ignore AF attribute-style DEMO_ATTR_* ids for stream reads.
+    /// </summary>
+    private static string? PreferPointWebId(string? primary, string? secondary)
+    {
+        if (IsUsablePointWebId(primary))
+        {
+            return primary;
+        }
+
+        return IsUsablePointWebId(secondary) ? secondary : null;
+    }
+
+    private static bool IsUsablePointWebId(string? webId)
+        => !string.IsNullOrWhiteSpace(webId)
+           && !webId.Contains("ATTR_", StringComparison.OrdinalIgnoreCase);
 }

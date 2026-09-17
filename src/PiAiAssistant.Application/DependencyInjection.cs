@@ -9,6 +9,7 @@ public static class DependencyInjection
     {
         services.AddScoped<ITagResolver, TagResolver>();
         services.AddScoped<ITagIntelligenceService, TagIntelligenceService>();
+        services.AddScoped<ITagCatalogSyncService, TagCatalogSyncService>();
         return services;
     }
 }

@@ -34,8 +34,14 @@ public sealed class TagAssistant(
         """
         You are an industrial AVEVA PI System assistant for operations and engineering users.
 
+        Data access model (important):
+        - Tag identity, aliases, ownership, criticality, expected ranges, and relationships come from the SQLite tag catalog database.
+        - Current values, history, and chart series are loaded through .NET tools that resolve the catalog row first, then read the PI stream (demo or live).
+        - ALWAYS call tools for PI/catalog facts. Never invent tags, values, units, timestamps, ranges, or ownership.
+        - Prefer list_catalog_tags or search_tags when the user asks what tags exist or is unsure of the exact name.
+
         Scope — answer ANY natural-language question about PI tags / AF attributes that can be satisfied with the available tools:
-        - find / search tags and aliases
+        - find / search tags and aliases (catalog first)
         - tag specifications and metadata
         - current values and quality
         - history / trends over a time window
@@ -44,7 +50,6 @@ public sealed class TagAssistant(
         - comparing multiple tags (for charts)
 
         Rules:
-        - ALWAYS call tools for PI facts. Never invent tags, values, units, timestamps, ranges, or ownership.
         - If a tool returns ambiguous candidates, ask the user to pick one — do not guess.
         - If data is missing or quality is bad, say so clearly.
         - Time defaults: when the user does not specify a window, use the last 1 hour.
@@ -83,6 +88,7 @@ public sealed class TagAssistant(
         var toolChat = chatClient.AsBuilder().UseFunctionInvocation().Build();
         AIFunction[] tools =
         [
+            AIFunctionFactory.Create(ListCatalogTagsTool),
             AIFunctionFactory.Create(SearchTagsTool),
             AIFunctionFactory.Create(GetTagDetailsTool),
             AIFunctionFactory.Create(GetTagHistoryTool),
@@ -131,7 +137,28 @@ public sealed class TagAssistant(
 
         return new ChatAskResponse(conversationId, answer, toolTrace, sources, visualization);
 
-        [Description("Search PI/catalog tags by free text when the tag name is unclear.")]
+        [Description("List curated tags from the SQLite tag catalog database (canonical names, PI point names, WebIds). Use when asking what tags are known.")]
+        async Task<string> ListCatalogTagsTool(int maxResults = 50)
+        {
+            return await RunToolAsync("list_catalog_tags", async () =>
+            {
+                var results = await tags.ListCatalogTagsAsync(Math.Clamp(maxResults, 1, 100), cancellationToken);
+                foreach (var r in results.Take(20))
+                {
+                    sources.Add(new ChatSource("Catalog", r.CanonicalName, r.WebId));
+                }
+
+                return new
+                {
+                    status = results.Count == 0 ? "not_found" : "found",
+                    source = "tag-catalog.db",
+                    count = results.Count,
+                    tags = results
+                };
+            });
+        }
+
+        [Description("Search PI/catalog tags by free text when the tag name is unclear. Catalog (SQLite) is searched first.")]
         async Task<string> SearchTagsTool(string query, int maxResults = 10)
         {
             return await RunToolAsync("search_tags", async () =>
@@ -313,7 +340,7 @@ public sealed class TagAssistant(
         {
             if (status == TagResolutionStatus.Found && !string.IsNullOrWhiteSpace(name))
             {
-                sources.Add(new ChatSource("PI", name, webId));
+                sources.Add(new ChatSource("Catalog+PI", name, webId));
             }
         }
     }

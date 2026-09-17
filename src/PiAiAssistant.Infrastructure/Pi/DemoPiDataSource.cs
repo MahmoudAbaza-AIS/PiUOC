@@ -33,7 +33,15 @@ public sealed class DemoPiDataSource : IPiConnectivity, IPiPointReader, ITagValu
             DemoPoint.Create("B03_FEEDWATER_FLOW", "Boiler 03 feedwater flow", "t/h", "OPC", "Plant1"),
             DemoPoint.Create("B03_BURNER_LOAD", "Boiler 03 burner load", "%", "OPC", "Plant1"),
             DemoPoint.Create("B04_STEAM_PRESSURE", "Main steam pressure downstream of Boiler 04", "bar(g)", "OPC", "Plant1"),
-            DemoPoint.Create("HEADER_STEAM_PRESSURE", "Main steam header pressure", "bar(g)", "OPC", "Plant1")
+            DemoPoint.Create("HEADER_STEAM_PRESSURE", "Main steam header pressure", "bar(g)", "OPC", "Plant1"),
+            // NuGreen emulator-compatible tags (also used when catalog points at emulator names in offline demo)
+            DemoPoint.Create("Houston.B-210.Temperature", "Houston B-210 Temperature", "°C", "OPC", "Houston"),
+            DemoPoint.Create("Houston.B-210.Pressure", "Houston B-210 Pressure", "psi", "OPC", "Houston"),
+            DemoPoint.Create("Houston.B-210.SteamFlow", "Houston B-210 Steam Flow", "lb/hr", "OPC", "Houston"),
+            DemoPoint.Create("Houston.C-110.RPM", "Houston C-110 RPM", "rpm", "OPC", "Houston"),
+            DemoPoint.Create("Houston.C-110.Vibration", "Houston C-110 Vibration", "mil", "OPC", "Houston"),
+            DemoPoint.Create("Oakland.B-220.Temperature", "Oakland B-220 Temperature", "°C", "OPC", "Oakland"),
+            DemoPoint.Create("Oakland.B-220.Pressure", "Oakland B-220 Pressure", "psi", "OPC", "Oakland")
         };
 
         _points = new Dictionary<string, DemoPoint>(StringComparer.OrdinalIgnoreCase);
@@ -74,6 +82,30 @@ public sealed class DemoPiDataSource : IPiConnectivity, IPiPointReader, ITagValu
                 @"\\DEMO\B03_STEAM_TEMP",
                 "Boiler03",
                 @"\\AFSERVER\Production\Plant1\Boiler03",
+                "BoilerTemplate",
+                "Process"),
+            [@"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210|Temperature"] = new(
+                "Temperature",
+                @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210|Temperature",
+                "Houston B-210 Temperature",
+                "Double",
+                "°C",
+                "PI Point",
+                @"\\DEMO\Houston.B-210.Temperature",
+                "B-210",
+                @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210",
+                "BoilerTemplate",
+                "Process"),
+            [@"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210|Pressure"] = new(
+                "Pressure",
+                @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210|Pressure",
+                "Houston B-210 Pressure",
+                "Double",
+                "psi",
+                "PI Point",
+                @"\\DEMO\Houston.B-210.Pressure",
+                "B-210",
+                @"\\AFServer1\NuGreen\Houston\Cracking Process\Equipment\B-210",
                 "BoilerTemplate",
                 "Process")
         };

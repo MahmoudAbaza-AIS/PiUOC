@@ -48,6 +48,11 @@ public interface ITagIntelligenceService
     Task<IReadOnlyList<RelatedTagDto>> GetRelatedTagsAsync(
         string tagReference,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Lists curated tags from the SQLite catalog (identity/business metadata).</summary>
+    Task<IReadOnlyList<TagCandidate>> ListCatalogTagsAsync(
+        int maxResults = 50,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Application port for curated business metadata (implemented in Infrastructure).</summary>
@@ -56,6 +61,22 @@ public interface ITagCatalogRepository
     Task<TagCatalogItem?> FindByAliasAsync(string alias, CancellationToken cancellationToken = default);
     Task<TagCatalogItem?> FindByCanonicalNameAsync(string canonicalName, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TagCatalogItem>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TagCatalogItem>> ListEnabledAsync(int maxResults = 200, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TagRelationshipItem>> GetRelationshipsAsync(string canonicalName, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TagDocumentationItem>> GetDocumentationAsync(string canonicalName, CancellationToken cancellationToken = default);
+
+    /// <summary>Persists PI stream identity resolved from Demo/live PI into the SQLite catalog.</summary>
+    Task UpdatePiIdentityAsync(
+        string canonicalName,
+        string? piPointName,
+        string? piWebId,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Backfills catalog rows with PI WebIds / point names so AI tools can resolve streams from the DB.
+/// </summary>
+public interface ITagCatalogSyncService
+{
+    Task<TagCatalogSyncResult> SyncPiIdentitiesAsync(CancellationToken cancellationToken = default);
 }

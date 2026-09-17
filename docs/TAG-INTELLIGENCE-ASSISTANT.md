@@ -66,7 +66,9 @@ Three chat surfaces now exist. Use the right one for the job.
 ### 1) `POST /api/chat` — Tag Intelligence Assistant (recommended)
 
 - Uses `ITagAssistant` / `TagAssistant`
-- Registers tools: `search_tags`, `get_tag_details`
+- Registers tools: `list_catalog_tags`, `search_tags`, `get_tag_details`, `get_tag_history`, `get_tag_summary`, `get_related_tags`, `get_chart_series`, `compare_tags`
+- Resolves tag identity from **SQLite tag catalog** first; stream values come from Demo/live PI using catalog `PiWebId` / `PiPointName`
+- On startup, `ITagCatalogSyncService` backfills missing `PiWebId` values into the catalog DB
 - Model is local Ollama (`Ollama:Model`, default `qwen3:8b`)
 - Writes a `ChatAudit` row
 - Returns `toolTrace` + `sources` when tools ran
@@ -187,26 +189,55 @@ tests/
 
 See [CLEAN-ARCHITECTURE.md](CLEAN-ARCHITECTURE.md). Demo vs live PI is selected only in `Infrastructure/DependencyInjection.cs`.
 
-## Seeded demo tags
+## Seeded NuGreen catalog tags
 
-- `Plant1.Boiler03.SteamPressure` (aliases: `Boiler03.SteamPressure`, …)
-- related: steam temperature, feedwater flow, burner load
-- also Boiler04 / header pressure for ambiguity demos
+Aligned with the PI WebAPI Emulator:
+
+- `Houston.B-210.Temperature` / `Pressure` / `SteamFlow`
+- `Houston.C-110.RPM` / `Vibration`
+- `Oakland.B-220.Temperature` / `Pressure`
+- aliases such as `B-210 Temperature`
 
 ## Safety already baked in
 
-- Tag Assistant tools are read-only (`search_tags`, `get_tag_details`)
+- Tag Assistant tools are read-only (`list_catalog_tags`, `search_tags`, `get_tag_details`, history/summary/chart/compare/related)
+- Catalog DB (`tag-catalog.db`) is the curated identity source; AI never runs raw SQL
 - Ambiguous matches return HTTP 409 + candidates (no silent pick)
 - History capped (max 1000 points, max 24h raw window)
 - Chat audit rows in `ChatAudit` for Tag Assistant requests
 - Metadata WebIds cached briefly; live values are not cached long-term
 - Raw `/ollama` and `/qwen-online` endpoints intentionally have **no** PI tool access
 
+## PI WebAPI Emulator (local live PI)
+
+Point the app at [Shirajum Munir's AVEVA PI WebAPI Emulator](https://github.com/mdshirajum/--Aveva_PI_WebAPI_Emulator) (NuGreen hierarchy on `localhost:5000`):
+
+```json
+"PiConnection": {
+  "UseDemoMode": false,
+  "BaseUrl": "http://localhost:5000/piwebapi",
+  "DataArchiveName": "PIServer1",
+  "DefaultAfServer": "AFServer1",
+  "DefaultAfDatabase": "NuGreen",
+  "AuthMode": "Anonymous"
+}
+```
+
+`PiWebApiDataSource` falls back when GetByPath / points/search are missing (as on this emulator): `points/pt_{name}`, `dataservers/{id}/points`, and AF attribute WebId / tree walk.
+
+Sample tags: `Houston.B-210.Temperature`, `Houston.B-210.Pressure`, `Oakland.B-220.Temperature`.
+
 ## Tests
 
 ```powershell
 dotnet test tests/PiAiAssistant.Tests
 ```
+
+Includes:
+
+- Application/catalog unit tests (Demo PI + SQLite)
+- **WireMock.NET** HTTP contract tests for `PiWebApiDataSource` (fake PI Web API: 200/401/404/500, query params, exception mapping, emulator-style fallbacks)
+- Optional smoke test against `http://localhost:5000/piwebapi` (no-ops if emulator is down)
 
 ## Sample HTTP file
 

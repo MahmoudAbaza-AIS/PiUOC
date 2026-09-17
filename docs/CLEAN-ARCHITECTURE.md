@@ -24,7 +24,7 @@ Dependencies point **inward only**. Infrastructure and Presentation reference Ap
 | Layer | Examples |
 |---|---|
 | Domain | `PiPoint`, `TagSample`, `IPiPointReader`, `ITagValueReader`, `IAfAttributeReader`, `IPiConnectivity` |
-| Application | `ITagIntelligenceService`, `TagResolver`, `TagIntelligenceService`, `ITagCatalogRepository`, `ITagAssistant` |
+| Application | `ITagIntelligenceService`, `TagResolver`, `TagIntelligenceService`, `ITagCatalogRepository`, `ITagCatalogSyncService`, `ITagAssistant` |
 | Infrastructure | `PiWebApiDataSource`, `DemoPiDataSource`, `TagCatalogRepository`, `TagAssistant` (LLM adapter), `AddInfrastructure` |
 | Presentation | `Program.cs` minimal APIs only |
 

@@ -186,3 +186,5 @@ public sealed class TagDocumentationItem
     public required string Body { get; set; }
     public string Source { get; set; } = "TagDocumentation";
 }
+
+public sealed record TagCatalogSyncResult(int Examined, int Updated, int Unresolved, IReadOnlyList<string> Warnings);
