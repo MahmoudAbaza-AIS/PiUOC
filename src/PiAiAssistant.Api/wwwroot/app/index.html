@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PI Tag Intelligence</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/app/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>PI Tag Intelligence</h1>
+      <p class="sub">Ask about tags · view trends · demo or live PI</p>
+    </div>
+    <div class="status" id="statusPills">
+      <span class="pill" id="piPill">PI…</span>
+      <span class="pill" id="ollamaPill">Ollama…</span>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="panel chat-panel">
+      <h2>Assistant</h2>
+      <div id="messages" class="messages" aria-live="polite"></div>
+      <form id="chatForm" class="composer">
+        <input id="chatInput" type="text" placeholder="e.g. Show trend for SINUSOID last hour" autocomplete="off" required />
+        <button type="submit">Ask</button>
+      </form>
+      <p class="hint">Uses read-only tools only. Charts appear when history/compare tools run.</p>
+    </section>
+
+    <section class="panel viz-panel">
+      <div class="viz-head">
+        <h2>Visualization</h2>
+        <div class="viz-controls">
+          <input id="tagInput" type="text" value="SINUSOID" placeholder="Tag name" />
+          <select id="hoursSelect">
+            <option value="1">1h</option>
+            <option value="6">6h</option>
+            <option value="24" selected>24h</option>
+          </select>
+          <button type="button" id="loadChartBtn">Load chart</button>
+        </div>
+      </div>
+      <canvas id="trendChart" height="120"></canvas>
+      <pre id="vizMeta" class="meta"></pre>
+    </section>
+  </main>
+
+  <script src="/app/app.js"></script>
+</body>
+</html>

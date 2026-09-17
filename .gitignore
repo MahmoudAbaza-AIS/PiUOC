@@ -1,0 +1,13 @@
+# Ignore build outputs
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+
+# Local databases / secrets
+**/tag-catalog.db
+**/tag-catalog.db-*
+**/appsettings.*.local.json
+**/secrets.json
+.env

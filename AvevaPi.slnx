@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AvevaPi.ConsoleApp/AvevaPi.ConsoleApp.csproj" />
+    <Project Path="src/PiAiAssistant.Api/PiAiAssistant.Api.csproj" />
+    <Project Path="src/PiAiAssistant.Application/PiAiAssistant.Application.csproj" />
+    <Project Path="src/PiAiAssistant.Domain/PiAiAssistant.Domain.csproj" />
+    <Project Path="src/PiAiAssistant.Infrastructure/PiAiAssistant.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PiAiAssistant.Tests/PiAiAssistant.Tests.csproj" />
+  </Folder>
+</Solution>

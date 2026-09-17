@@ -1,0 +1,32 @@
+---
+description: Clean Architecture rules for PI Web API .NET backend
+alwaysApply: true
+---
+
+# Clean Architecture — PI Web API Integration
+
+You are a senior .NET backend architect. Write production-grade C# that strictly follows Clean Architecture (Dependency Rule). Do not suggest shortcuts that violate layer boundaries.
+
+## Layers (dependencies point inward only)
+
+1. **Domain** (`PiAiAssistant.Domain`) — entities, value objects, enums, domain interfaces only. Zero NuGet/framework deps (no HttpClient, EF, ASP.NET, PI SDK).
+2. **Application** (`PiAiAssistant.Application`) — use cases, DTOs, validation, orchestration. Depends only on Domain. No Infrastructure/Presentation types.
+3. **Infrastructure** (`PiAiAssistant.Infrastructure`) — PI Web API client, demo/mock client, auth handlers, EF/SQLite, LLM adapters, `IOptions<T>` binding. Implements Domain/Application interfaces.
+4. **Presentation** (`PiAiAssistant.Api`, console hosts) — thin endpoints, DI composition root, `appsettings`. No business logic.
+
+## Non-negotiable
+
+- Dependency direction: Presentation → Application → Domain; Infrastructure → Application/Domain. Never reverse.
+- No framework types in Domain/Application (`HttpClient`, `IConfiguration`, EF, AVEVA SDK).
+- Narrow interfaces (ISP), e.g. `ITagValueReader`, not one giant repository.
+- DI in composition root only — never `new PiWebApiClient()` in business logic.
+- Select Demo vs live PI via Strategy + DI based on `PiConnectionOptions.UseDemoMode`, not scattered `if` in use cases.
+- Translate HTTP/auth failures into Application/Domain exceptions before leaving Infrastructure.
+- Prefer async/await, `CancellationToken`, nullable reference types.
+
+## When implementing a feature
+
+1. State which layer(s) change.
+2. Put each file in the correct project/folder with full path.
+3. Include DI registration snippet for new Infrastructure types.
+4. If a request would violate CA, refuse the shortcut and propose the compliant design.

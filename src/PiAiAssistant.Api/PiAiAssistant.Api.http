@@ -1,0 +1,44 @@
+@PiAiAssistant.Api_HostAddress = http://localhost:5041
+
+### Health
+GET {{PiAiAssistant.Api_HostAddress}}/health
+GET {{PiAiAssistant.Api_HostAddress}}/health/pi
+GET {{PiAiAssistant.Api_HostAddress}}/health/ollama
+
+### API docs (Scalar)
+GET {{PiAiAssistant.Api_HostAddress}}/scalar/v1
+GET {{PiAiAssistant.Api_HostAddress}}/openapi/v1.json
+
+### Milestone: deterministic tag details
+GET {{PiAiAssistant.Api_HostAddress}}/api/tags/Plant1.Boiler03.SteamPressure
+
+### Search / history
+GET {{PiAiAssistant.Api_HostAddress}}/api/tags/search?q=steam
+GET {{PiAiAssistant.Api_HostAddress}}/api/tags/history?reference=Plant1.Boiler03.SteamPressure
+
+### Alias resolution
+GET {{PiAiAssistant.Api_HostAddress}}/api/tags/Boiler03.SteamPressure
+
+### Tag Assistant (Ollama + PI/catalog tools)
+POST {{PiAiAssistant.Api_HostAddress}}/api/chat
+Content-Type: application/json
+
+{
+  "message": "Tell me everything about Plant1.Boiler03.SteamPressure. Include current value, unit, source, and related tags."
+}
+
+### Raw local Ollama chat (no tools — model smoke test)
+POST {{PiAiAssistant.Api_HostAddress}}/api/chat/ollama
+Content-Type: application/json
+
+{
+  "message": "Reply with one short sentence confirming you are online."
+}
+
+### Raw Qwen Online chat (no tools — requires QwenOnline:Enabled + ApiKey)
+POST {{PiAiAssistant.Api_HostAddress}}/api/chat/qwen-online
+Content-Type: application/json
+
+{
+  "message": "Reply with one short sentence confirming you are online."
+}
