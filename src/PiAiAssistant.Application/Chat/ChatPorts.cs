@@ -1,13 +1,17 @@
 namespace PiAiAssistant.Application.Chat;
 
-public sealed record ChatAskRequest(string Message, string? ConversationId = null);
+public sealed record ChatAskRequest(
+    string Message,
+    string? ConversationId = null,
+    string? Model = null);
 
 public sealed record ChatAskResponse(
     string ConversationId,
     string Answer,
     IReadOnlyList<ToolTraceItem> ToolTrace,
     IReadOnlyList<ChatSource> Sources,
-    VisualizationPayload? Visualization = null);
+    VisualizationPayload? Visualization = null,
+    string? Model = null);
 
 public sealed record ToolTraceItem(string Tool, string Status, long DurationMs);
 

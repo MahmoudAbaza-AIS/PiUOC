@@ -67,7 +67,8 @@ app.MapGet("/health/ollama", async (IOptions<OllamaOptions> options, Cancellatio
         return Results.Ok(new
         {
             reachable = response.IsSuccessStatusCode,
-            model = ollama.Model,
+            model = ollama.DefaultModel,
+            models = ollama.ListModels(),
             enabled = ollama.Enabled,
             statusCode = (int)response.StatusCode,
             preview = body.Length > 300 ? body[..300] + "..." : body
@@ -75,7 +76,14 @@ app.MapGet("/health/ollama", async (IOptions<OllamaOptions> options, Cancellatio
     }
     catch (Exception ex)
     {
-        return Results.Ok(new { reachable = false, model = ollama.Model, enabled = ollama.Enabled, error = ex.Message });
+        return Results.Ok(new
+        {
+            reachable = false,
+            model = ollama.DefaultModel,
+            models = ollama.ListModels(),
+            enabled = ollama.Enabled,
+            error = ex.Message
+        });
     }
 });
 
@@ -211,6 +219,17 @@ tags.MapGet("/{tagReference}", async (
 
 var chat = app.MapGroup("/api/chat").WithTags("Chat");
 
+chat.MapGet("/models", (IOptions<OllamaOptions> options) =>
+{
+    var ollama = options.Value;
+    return Results.Ok(new
+    {
+        enabled = ollama.Enabled,
+        defaultModel = ollama.DefaultModel,
+        models = ollama.ListModels()
+    });
+}).WithName("ListLocalChatModels");
+
 chat.MapPost("/", async (ChatAskRequest request, ITagAssistant assistant, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Message))
@@ -245,6 +264,31 @@ chat.MapPost("/ollama", async (
         return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
     }
 }).WithName("ChatOllama");
+
+chat.MapPost("/deepseek", async (
+    ChatAskRequest request,
+    [FromKeyedServices("deepseek")] IRawChatService chatService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Message))
+    {
+        return Results.BadRequest(new { message = "message is required" });
+    }
+
+    if (!chatService.IsEnabled)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    try
+    {
+        return Results.Ok(await chatService.AskAsync(request, ct));
+    }
+    catch
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+}).WithName("ChatDeepSeek");
 
 chat.MapPost("/qwen-online", async (
     ChatAskRequest request,

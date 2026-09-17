@@ -4,15 +4,22 @@ let chart;
 const messagesEl = document.getElementById("messages");
 const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
+const modelSelect = document.getElementById("modelSelect");
 const loadChartBtn = document.getElementById("loadChartBtn");
 const tagInput = document.getElementById("tagInput");
 const hoursSelect = document.getElementById("hoursSelect");
 const vizMeta = document.getElementById("vizMeta");
 
-function addMessage(role, text, tools) {
+function addMessage(role, text, tools, model) {
   const div = document.createElement("div");
   div.className = `msg ${role}`;
   div.textContent = text;
+  if (model) {
+    const m = document.createElement("div");
+    m.className = "tools";
+    m.textContent = `Model: ${model}`;
+    div.appendChild(m);
+  }
   if (tools?.length) {
     const t = document.createElement("div");
     t.className = "tools";
@@ -29,6 +36,23 @@ function setPill(id, ok, label) {
   el.className = `pill ${ok ? "ok" : "bad"}`;
 }
 
+async function loadModels() {
+  try {
+    const data = await fetch("/api/chat/models").then(r => r.json());
+    if (!data?.models?.length) return;
+    modelSelect.innerHTML = "";
+    for (const m of data.models) {
+      const opt = document.createElement("option");
+      opt.value = m.key;
+      opt.textContent = `${m.key} (${m.modelId})`;
+      if (m.isDefault) opt.selected = true;
+      modelSelect.appendChild(opt);
+    }
+  } catch {
+    // keep hardcoded options from HTML
+  }
+}
+
 async function refreshHealth() {
   try {
     const pi = await fetch("/health/pi").then(r => r.json());
@@ -38,7 +62,10 @@ async function refreshHealth() {
   }
   try {
     const o = await fetch("/health/ollama").then(r => r.json());
-    setPill("ollamaPill", !!o.reachable, o.reachable ? `Ollama: ${o.model}` : "Ollama: offline");
+    const label = o.reachable
+      ? `Ollama: ${o.models?.map(m => m.key).join("+") || o.model}`
+      : "Ollama: offline";
+    setPill("ollamaPill", !!o.reachable, label);
   } catch {
     setPill("ollamaPill", false, "Ollama: error");
   }
@@ -111,11 +138,11 @@ chatForm.addEventListener("submit", async (e) => {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, conversationId })
+      body: JSON.stringify({ message, conversationId, model: modelSelect?.value || null })
     });
     const data = await res.json();
     conversationId = data.conversationId;
-    addMessage("bot", data.answer || "(empty)", data.toolTrace);
+    addMessage("bot", data.answer || "(empty)", data.toolTrace, data.model);
     if (data.visualization) {
       await ensureTimeScale();
       renderVisualization(data.visualization);
@@ -164,5 +191,6 @@ loadChartBtn.addEventListener("click", async () => {
 });
 
 addMessage("bot", "Ask about any PI tag — current value, specs, history, summary, related signals, or compare tags. Charts render when trend tools are used.");
+loadModels();
 refreshHealth();
 ensureTimeScale().then(() => loadChartBtn.click());

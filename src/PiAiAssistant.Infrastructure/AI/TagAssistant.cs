@@ -80,6 +80,7 @@ public sealed class TagAssistant(
             ? Guid.NewGuid().ToString("N")
             : request.ConversationId!;
         var correlationId = Guid.NewGuid().ToString("N");
+        var modelId = ollamaOptions.Value.ResolveModelId(request.Model);
         var toolTrace = new List<ToolTraceItem>();
         var sources = new List<ChatSource>();
         VisualizationPayload? visualization = null;
@@ -108,7 +109,7 @@ public sealed class TagAssistant(
                 ],
                 new ChatOptions
                 {
-                    ModelId = ollamaOptions.Value.Model,
+                    ModelId = modelId,
                     Tools = tools,
                     Temperature = 0.1f
                 },
@@ -118,7 +119,7 @@ public sealed class TagAssistant(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Tag assistant failed. CorrelationId={CorrelationId}", correlationId);
+            logger.LogError(ex, "Tag assistant failed. CorrelationId={CorrelationId} Model={Model}", correlationId, modelId);
             answer =
                 "The assistant could not complete this request. Verify Ollama is running and tag APIs work. " +
                 $"Details: {ex.Message}";
@@ -135,7 +136,7 @@ public sealed class TagAssistant(
             (int)sw.ElapsedMilliseconds,
             cancellationToken);
 
-        return new ChatAskResponse(conversationId, answer, toolTrace, sources, visualization);
+        return new ChatAskResponse(conversationId, answer, toolTrace, sources, visualization, modelId);
 
         [Description("List curated tags from the SQLite tag catalog database (canonical names, PI point names, WebIds). Use when asking what tags are known.")]
         async Task<string> ListCatalogTagsTool(int maxResults = 50)
@@ -390,9 +391,10 @@ public sealed class TagAssistant(
 public sealed class RawChatService(
     string providerName,
     bool enabled,
-    string modelId,
+    string defaultModelId,
     IChatClient chatClient,
-    ILogger logger) : IRawChatService
+    ILogger logger,
+    Func<string?, string>? resolveModel = null) : IRawChatService
 {
     public string ProviderName { get; } = providerName;
     public bool IsEnabled { get; } = enabled;
@@ -404,16 +406,20 @@ public sealed class RawChatService(
             throw new InvalidOperationException($"{ProviderName} chat is disabled.");
         }
 
+        var model = resolveModel?.Invoke(request.Model)
+                    ?? (!string.IsNullOrWhiteSpace(request.Model) ? request.Model!.Trim() : defaultModelId);
+
         _ = logger;
         var response = await chatClient.GetResponseAsync(
             [new ChatMessage(ChatRole.User, request.Message)],
-            new ChatOptions { ModelId = modelId },
+            new ChatOptions { ModelId = model },
             cancellationToken);
 
         return new ChatAskResponse(
             request.ConversationId ?? Guid.NewGuid().ToString("N"),
             response.Text?.Trim() ?? "No response generated",
             [],
-            []);
+            [],
+            Model: model);
     }
 }

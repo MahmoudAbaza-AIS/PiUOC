@@ -22,12 +22,19 @@
   <main class="grid">
     <section class="panel chat-panel">
       <h2>Assistant</h2>
+      <div class="chat-toolbar">
+        <label for="modelSelect">Local model</label>
+        <select id="modelSelect" title="Ollama model for Tag Assistant">
+          <option value="qwen">qwen3:8b</option>
+          <option value="deepseek">deepseek-r1:5b</option>
+        </select>
+      </div>
       <div id="messages" class="messages" aria-live="polite"></div>
       <form id="chatForm" class="composer">
         <input id="chatInput" type="text" placeholder="e.g. Show trend for Houston.B-210.Temperature" autocomplete="off" required />
         <button type="submit">Ask</button>
       </form>
-      <p class="hint">Uses read-only tools only. Charts appear when history/compare tools run.</p>
+      <p class="hint">Uses read-only tools only. Switch between Qwen and DeepSeek locally via Ollama.</p>
     </section>
 
     <section class="panel viz-panel">

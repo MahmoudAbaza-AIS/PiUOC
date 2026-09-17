@@ -116,14 +116,22 @@ Content-Type: application/json
 "Ollama": {
   "Enabled": true,
   "BaseUrl": "http://localhost:11434/",
-  "Model": "qwen3:8b"
+  "DefaultModel": "qwen3:8b",
+  "Models": {
+    "qwen": "qwen3:8b",
+    "deepseek": "deepseek-r1:5b"
+  }
 }
 ```
 
 ```bash
 ollama pull qwen3:8b
+ollama pull deepseek-r1:5b
 ollama serve
 ```
+
+Tag Assistant (`POST /api/chat`) accepts optional `"model": "qwen" | "deepseek" | "qwen3:8b" | "deepseek-r1:5b"`.  
+List models: `GET /api/chat/models`. Raw smoke tests: `POST /api/chat/ollama`, `POST /api/chat/deepseek`.
 
 ### `QwenOnline` (cloud)
 

@@ -73,7 +73,7 @@ public static class DependencyInjection
         services.AddScoped<ITagCatalogRepository, TagCatalogRepository>();
         services.AddScoped<IChatAuditStore, EfChatAuditStore>();
 
-        // Default chat client for Tag Assistant tools = Ollama
+        // Default chat client for Tag Assistant tools = Ollama (model chosen per request via ChatOptions.ModelId)
         services.AddSingleton<IChatClient>(sp => CreateOllamaChatClient(sp.GetRequiredService<IOptions<OllamaOptions>>().Value));
         services.AddScoped<ITagAssistant, TagAssistant>();
 
@@ -83,9 +83,23 @@ public static class DependencyInjection
             return new RawChatService(
                 "ollama",
                 opt.Enabled,
-                opt.Model,
+                opt.DefaultModel,
                 CreateOllamaChatClient(opt),
-                sp.GetRequiredService<ILoggerFactory>().CreateLogger("OllamaRawChat"));
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger("OllamaRawChat"),
+                opt.ResolveModelId);
+        });
+
+        services.AddKeyedSingleton<IRawChatService>("deepseek", (sp, _) =>
+        {
+            var opt = sp.GetRequiredService<IOptions<OllamaOptions>>().Value;
+            var model = opt.ResolveModelId("deepseek");
+            return new RawChatService(
+                "deepseek",
+                opt.Enabled,
+                model,
+                CreateOllamaChatClient(opt),
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger("DeepSeekRawChat"),
+                _ => model);
         });
 
         services.AddKeyedSingleton<IRawChatService>("qwen-online", (sp, _) =>
@@ -134,7 +148,7 @@ public static class DependencyInjection
             new ApiKeyCredential("ollama"),
             new OpenAIClientOptions { Endpoint = new Uri(endpoint + "/") });
 
-        return client.GetChatClient(ollama.Model).AsIChatClient();
+        return client.GetChatClient(ollama.DefaultModel).AsIChatClient();
     }
 
     internal static void ConfigureHttpClient(HttpClient client, PiConnectionOptions options)
