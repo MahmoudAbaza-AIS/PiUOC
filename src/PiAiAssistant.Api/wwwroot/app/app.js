@@ -138,15 +138,8 @@ loadChartBtn.addEventListener("click", async () => {
     const url = `/api/tags/chart?reference=${encodeURIComponent(tag)}&startUtc=${encodeURIComponent(start.toISOString())}&endUtc=${encodeURIComponent(end.toISOString())}&maxCount=300`;
     const res = await fetch(url);
     const data = await res.json();
-    if (!res.ok || data.status !== 0 && data.status !== "Found" && data.Status !== 0) {
-      // enum may serialize as number 0 = Found
-      if (data.status !== 0 && data.Status !== undefined && data.Status !== 0) {
-        vizMeta.textContent = JSON.stringify(data, null, 2);
-        return;
-      }
-    }
     const status = data.status ?? data.Status;
-    if (status !== 0 && status !== "Found") {
+    if (!res.ok || (status !== "Found" && status !== 0)) {
       vizMeta.textContent = JSON.stringify(data, null, 2);
       return;
     }

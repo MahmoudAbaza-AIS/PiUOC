@@ -27,9 +27,9 @@ cd C:\Users\SESA652755\Documents\Projects\AIS\UOC-V2
 dotnet run --project src/PiAiAssistant.Api
 ```
 
-- HTTP profile: `http://localhost:5041`
-- Browser opens **Scalar**: `http://localhost:5041/scalar/v1`
-- In Development, `appsettings.Development.json` forces **demo PI** (`UseDemoMode: true`) even if base `appsettings.json` points at a live server template.
+- App UI (chat + charts): `http://localhost:5041/app/index.html`
+- Scalar: `http://localhost:5041/scalar/v1`
+- In Development, `appsettings.Development.json` forces **demo PI** (`UseDemoMode: true`).
 
 ### Milestone endpoints
 
@@ -38,19 +38,26 @@ dotnet run --project src/PiAiAssistant.Api
 | `GET /health` | Process health |
 | `GET /health/pi` | PI connectivity (demo or live) |
 | `GET /health/ollama` | Local Ollama reachability |
-| `GET /api/tags/Plant1.Boiler03.SteamPressure` | Canonical tag details JSON |
-| `GET /api/tags/search?q=steam` | Constrained search |
-| `GET /api/tags/history?reference=Plant1.Boiler03.SteamPressure` | Recent history with server limits |
-| `GET /api/tags/details?reference=...` | Same as details, safer for odd paths |
-| `POST /api/chat` | **Tag Assistant** (Ollama + function tools → PI/catalog) |
-| `POST /api/chat/ollama` | Raw local Qwen via Ollama (**no tools**) |
-| `POST /api/chat/qwen-online` | Raw cloud Qwen via DashScope (**no tools**) |
+| `GET /api/tags/{TagName}` | Canonical tag details JSON |
+| `GET /api/tags/search?q=...` | Constrained search |
+| `GET /api/tags/history?reference=...` | Recent history with server limits |
+| `GET /api/tags/chart?reference=...` | Chart-ready time series |
+| `GET /api/tags/summary?reference=...` | Min/max/avg summary |
+| `GET /api/tags/compare?references=A,B` | Multi-tag chart series |
+| `GET /api/tags/details?reference=...` | Details via query string |
+| `POST /api/chat` | Broad PI assistant (tools + optional chart payload) |
+| `POST /api/chat/ollama` | Raw local Qwen (**no tools**) |
+| `POST /api/chat/qwen-online` | Raw cloud Qwen (**no tools**) |
 
-Example tag details:
+Example:
 
 ```http
-GET /api/tags/Plant1.Boiler03.SteamPressure
+GET /api/tags/chart?reference=SINUSOID
+POST /api/chat
+{ "message": "Show the trend for SINUSOID over the last hour" }
 ```
+
+The assistant handles natural-language PI questions (search, specs, current value, history, stats, related tags, compare) through **read-only tools only** — not unrestricted historian access.
 
 ## Chat endpoints (what changed)
 

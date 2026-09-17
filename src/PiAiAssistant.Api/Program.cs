@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using PiAiAssistant.Application.Chat;
@@ -10,6 +11,11 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -17,12 +23,16 @@ builder.Services.AddInfrastructure(builder.Configuration);
 var app = builder.Build();
 await app.Services.InitializeInfrastructureAsync();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
-    app.MapGet("/", () => Results.Redirect("/scalar/v1"));
 }
+
+app.MapGet("/", () => Results.Redirect("/app/index.html"));
 
 app.MapGet("/health", () => Results.Ok(new
 {
@@ -95,6 +105,56 @@ tags.MapGet("/history", async (
     }
 
     var result = await svc.GetTagHistoryAsync(reference, startUtc, endUtc, maxCount ?? 100, ct);
+    return MapTagResult(result.Status, result);
+});
+
+tags.MapGet("/chart", async (
+    string reference,
+    DateTimeOffset? startUtc,
+    DateTimeOffset? endUtc,
+    int? maxCount,
+    ITagIntelligenceService svc,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(reference))
+    {
+        return Results.BadRequest(new { message = "Query parameter 'reference' is required." });
+    }
+
+    var result = await svc.GetChartSeriesAsync(reference, startUtc, endUtc, maxCount ?? 200, ct);
+    return MapTagResult(result.Status, result);
+});
+
+tags.MapGet("/summary", async (
+    string reference,
+    DateTimeOffset? startUtc,
+    DateTimeOffset? endUtc,
+    ITagIntelligenceService svc,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(reference))
+    {
+        return Results.BadRequest(new { message = "Query parameter 'reference' is required." });
+    }
+
+    var result = await svc.GetSummaryAsync(reference, startUtc, endUtc, 500, ct);
+    return MapTagResult(result.Status, result);
+});
+
+tags.MapGet("/compare", async (
+    string references,
+    DateTimeOffset? startUtc,
+    DateTimeOffset? endUtc,
+    ITagIntelligenceService svc,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(references))
+    {
+        return Results.BadRequest(new { message = "Query parameter 'references' is required (comma-separated)." });
+    }
+
+    var list = references.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var result = await svc.CompareTagsAsync(list, startUtc, endUtc, 150, ct);
     return MapTagResult(result.Status, result);
 });
 
