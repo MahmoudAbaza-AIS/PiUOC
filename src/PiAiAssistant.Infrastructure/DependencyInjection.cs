@@ -14,9 +14,11 @@ using PiAiAssistant.Application.Abstractions;
 using PiAiAssistant.Application.Chat;
 using PiAiAssistant.Application.Tags;
 using PiAiAssistant.Domain.Interfaces;
+using PiAiAssistant.Infrastructure.Afag;
 using PiAiAssistant.Infrastructure.AI;
 using PiAiAssistant.Infrastructure.Caching;
 using PiAiAssistant.Infrastructure.Catalog;
+using PiAiAssistant.Infrastructure.Knowledge;
 using PiAiAssistant.Infrastructure.Options;
 using PiAiAssistant.Infrastructure.Pi;
 
@@ -24,7 +26,10 @@ namespace PiAiAssistant.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool isDevelopment = false)
     {
         services.AddMemoryCache();
         services.AddSingleton<IMetadataCache, MemoryMetadataCache>();
@@ -39,18 +44,48 @@ public static class DependencyInjection
         var pi = configuration.GetSection(PiConnectionOptions.SectionName).Get<PiConnectionOptions>()
                  ?? new PiConnectionOptions();
 
-        // Strategy: Demo vs live PI — selected once at composition root, not in use cases.
-        if (pi.UseDemoMode ||
-            string.Equals(pi.AuthMode, "Demo", StringComparison.OrdinalIgnoreCase))
+        var forceDemo = pi.UseDemoMode ||
+                        string.Equals(pi.AuthMode, "Demo", StringComparison.OrdinalIgnoreCase);
+
+        // Development + simulator configured: register BOTH demo and live, route via DevPreferSimulatorDataSource
+        // (re-probes so starting the emulator after the API switches over without restart).
+        var preferSimulatorInDev = isDevelopment && !forceDemo;
+
+        PiDataSourceRuntimeInfo runtimeInfo;
+        if (forceDemo)
         {
+            runtimeInfo = PiDataSourceRuntimeInfo.Demo(pi.BaseUrl, developmentPreferSimulator: false, fellBack: false);
             services.AddSingleton<DemoPiDataSource>();
             services.AddSingleton<IPiConnectivity>(sp => sp.GetRequiredService<DemoPiDataSource>());
             services.AddSingleton<IPiPointReader>(sp => sp.GetRequiredService<DemoPiDataSource>());
             services.AddSingleton<ITagValueReader>(sp => sp.GetRequiredService<DemoPiDataSource>());
             services.AddSingleton<IAfAttributeReader>(sp => sp.GetRequiredService<DemoPiDataSource>());
         }
+        else if (preferSimulatorInDev)
+        {
+            runtimeInfo = PiDataSourceRuntimeInfo.Demo(pi.BaseUrl, developmentPreferSimulator: true, fellBack: true);
+            services.AddSingleton(runtimeInfo);
+            services.AddSingleton<DemoPiDataSource>();
+            services.AddHttpClient<PiWebApiDataSource>((sp, client) =>
+                {
+                    var options = sp.GetRequiredService<IOptions<PiConnectionOptions>>().Value;
+                    ConfigureHttpClient(client, options);
+                })
+                .ConfigurePrimaryHttpMessageHandler(sp =>
+                {
+                    var options = sp.GetRequiredService<IOptions<PiConnectionOptions>>().Value;
+                    return CreateHandler(options);
+                });
+
+            services.AddSingleton<DevPreferSimulatorDataSource>();
+            services.AddSingleton<IPiConnectivity>(sp => sp.GetRequiredService<DevPreferSimulatorDataSource>());
+            services.AddSingleton<IPiPointReader>(sp => sp.GetRequiredService<DevPreferSimulatorDataSource>());
+            services.AddSingleton<ITagValueReader>(sp => sp.GetRequiredService<DevPreferSimulatorDataSource>());
+            services.AddSingleton<IAfAttributeReader>(sp => sp.GetRequiredService<DevPreferSimulatorDataSource>());
+        }
         else
         {
+            runtimeInfo = PiDataSourceRuntimeInfo.Live(pi.BaseUrl);
             services.AddHttpClient<PiWebApiDataSource>((sp, client) =>
                 {
                     var options = sp.GetRequiredService<IOptions<PiConnectionOptions>>().Value;
@@ -68,14 +103,24 @@ public static class DependencyInjection
             services.AddScoped<IAfAttributeReader>(sp => sp.GetRequiredService<PiWebApiDataSource>());
         }
 
+        if (!preferSimulatorInDev)
+        {
+            services.AddSingleton(runtimeInfo);
+        }
+
         var cs = configuration.GetConnectionString("TagCatalog") ?? "Data Source=tag-catalog.db";
         services.AddDbContext<AppDbContext>(o => o.UseSqlite(cs));
         services.AddScoped<ITagCatalogRepository, TagCatalogRepository>();
         services.AddScoped<IChatAuditStore, EfChatAuditStore>();
 
-        // Default chat client for Tag Assistant tools = Ollama (model chosen per request via ChatOptions.ModelId)
+        // AFAG semantic layer (business objects) + SOP knowledge — demo corpus for role-driven assistant
+        services.AddSingleton<IAfagHierarchyReader, AfagDemoHierarchyReader>();
+        services.AddSingleton<ISopKnowledgeStore, InMemorySopStore>();
+
+        // Default chat client for assistants = Ollama (model chosen per request via ChatOptions.ModelId)
         services.AddSingleton<IChatClient>(sp => CreateOllamaChatClient(sp.GetRequiredService<IOptions<OllamaOptions>>().Value));
         services.AddScoped<ITagAssistant, TagAssistant>();
+        services.AddScoped<IDecisionAssistant, DecisionAssistant>();
 
         services.AddKeyedSingleton<IRawChatService>("ollama", (sp, _) =>
         {
@@ -126,6 +171,32 @@ public static class DependencyInjection
     public static async Task InitializeInfrastructureAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {
         using var scope = services.CreateScope();
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("PiDataSource");
+        var runtime = scope.ServiceProvider.GetRequiredService<PiDataSourceRuntimeInfo>();
+
+        // Kick the Development router so the first health check already reflects simulator vs fallback.
+        var connectivity = scope.ServiceProvider.GetRequiredService<IPiConnectivity>();
+        _ = await connectivity.TryConnectAsync(cancellationToken);
+
+        if (runtime.ActiveSource == "simulator")
+        {
+            logger.LogInformation("Development PI source: emulator/simulator at {BaseUrl}", runtime.ConfiguredBaseUrl);
+        }
+        else if (runtime.FellBackFromSimulator)
+        {
+            logger.LogWarning(
+                "Development PI emulator at {BaseUrl} was unreachable — using in-process Demo PI fallback (auto re-probe).",
+                runtime.ConfiguredBaseUrl);
+        }
+        else if (runtime.UseDemo)
+        {
+            logger.LogInformation("PI source: in-process Demo mode");
+        }
+        else
+        {
+            logger.LogInformation("PI source: live Web API at {BaseUrl}", runtime.ConfiguredBaseUrl);
+        }
+
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.EnsureCreatedAsync(cancellationToken);
         await TagCatalogSeeder.SeedAsync(db, cancellationToken);
@@ -134,6 +205,38 @@ public static class DependencyInjection
         // Backfill PI WebIds into SQLite so AI tools resolve streams from the catalog DB.
         var sync = scope.ServiceProvider.GetRequiredService<ITagCatalogSyncService>();
         await sync.SyncPiIdentitiesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Quick probe used only at composition root in Development. Matches PiWebApiDataSource home check:
+    /// absolute BaseUrl without trailing slash, then dataservers.
+    /// </summary>
+    public static bool IsPiSimulatorReachable(string baseUrl, int timeoutSeconds = 2)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(Math.Clamp(timeoutSeconds, 1, 5)) };
+            var home = baseUrl.TrimEnd('/');
+            using (var homeResponse = http.GetAsync(home).GetAwaiter().GetResult())
+            {
+                if (homeResponse.IsSuccessStatusCode)
+                {
+                    return true;
+                }
+            }
+
+            using var dsResponse = http.GetAsync(home + "/dataservers").GetAwaiter().GetResult();
+            return dsResponse.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static IChatClient CreateOllamaChatClient(OllamaOptions ollama)

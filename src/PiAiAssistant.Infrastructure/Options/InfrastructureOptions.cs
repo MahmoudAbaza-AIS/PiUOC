@@ -41,12 +41,12 @@ public sealed class OllamaOptions
 
     /// <summary>
     /// Selectable local Ollama models. Keys are API/UI ids; values are Ollama model names.
-    /// Example: qwen → qwen3:8b, deepseek → deepseek-r1:5b
+    /// Example: qwen → qwen3:8b, deepseek → deepseek-r1:1.5b
     /// </summary>
     public Dictionary<string, string> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
         ["qwen"] = "qwen3:8b",
-        ["deepseek"] = "deepseek-r1:5b"
+        ["deepseek"] = "deepseek-r1:1.5b"
     };
 
     public IReadOnlyList<LocalModelInfo> ListModels()
@@ -92,7 +92,7 @@ public sealed class OllamaOptions
         if (Models.Count == 0)
         {
             Models["qwen"] = DefaultModel;
-            Models["deepseek"] = "deepseek-r1:5b";
+            Models["deepseek"] = "deepseek-r1:1.5b";
         }
 
         if (!Models.Values.Any(v => string.Equals(v, DefaultModel, StringComparison.OrdinalIgnoreCase)))

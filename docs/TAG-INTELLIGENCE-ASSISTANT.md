@@ -1,6 +1,10 @@
 # Tag Intelligence Assistant
 
-Deterministic PI/AF tag intelligence API first, then AI chat layers that can explain results. The **Tag Assistant** path can **only** call read-only .NET tools; raw provider endpoints are for smoke-testing models without tools.
+Supporting slice for specialist tag drills. The **primary** product path is the role-driven decision assistant — see [ROLE-DRIVEN-DECISION-ASSISTANT.md](ROLE-DRIVEN-DECISION-ASSISTANT.md).
+
+Deterministic PI/AF tag intelligence API first, then AI chat layers that can explain results. The **Tag Assistant** path (`POST /api/chat/tags`) can **only** call read-only .NET tools; raw provider endpoints are for smoke-testing models without tools.
+
+> **Guideline rule:** everyday VP / plant / operator demos must not require tag names. Prefer `POST /api/chat` (decision assistant) and `/api/fleet/*`.
 
 ## Principle
 
@@ -29,7 +33,7 @@ dotnet run --project src/PiAiAssistant.Api
 
 - App UI (chat + charts): `http://localhost:5041/app/index.html`
 - Scalar: `http://localhost:5041/scalar/v1`
-- In Development, `appsettings.Development.json` forces **demo PI** (`UseDemoMode: true`).
+- In Development, the API **prefers the PI WebAPI emulator** at `http://localhost:5000/piwebapi` (`UseDemoMode: false`). If the emulator is unreachable at startup, Infrastructure falls back to in-process **Demo PI** automatically (Development only).
 
 ### Milestone endpoints
 
@@ -45,7 +49,8 @@ dotnet run --project src/PiAiAssistant.Api
 | `GET /api/tags/summary?reference=...` | Min/max/avg summary |
 | `GET /api/tags/compare?references=A,B` | Multi-tag chart series |
 | `GET /api/tags/details?reference=...` | Details via query string |
-| `POST /api/chat` | Broad PI assistant (tools + optional chart payload) |
+| `POST /api/chat` | Role-driven decision assistant (persona + semantic tools) |
+| `POST /api/chat/tags` | Tag Intelligence Assistant (read-only tag tools) |
 | `POST /api/chat/ollama` | Raw local Qwen (**no tools**) |
 | `POST /api/chat/qwen-online` | Raw cloud Qwen (**no tools**) |
 
@@ -119,18 +124,18 @@ Content-Type: application/json
   "DefaultModel": "qwen3:8b",
   "Models": {
     "qwen": "qwen3:8b",
-    "deepseek": "deepseek-r1:5b"
+    "deepseek": "deepseek-r1:1.5b"
   }
 }
 ```
 
 ```bash
 ollama pull qwen3:8b
-ollama pull deepseek-r1:5b
+ollama pull deepseek-r1:1.5b
 ollama serve
 ```
 
-Tag Assistant (`POST /api/chat`) accepts optional `"model": "qwen" | "deepseek" | "qwen3:8b" | "deepseek-r1:5b"`.  
+Tag Assistant (`POST /api/chat`) accepts optional `"model": "qwen" | "deepseek" | "qwen3:8b" | "deepseek-r1:1.5b"`.  
 List models: `GET /api/chat/models`. Raw smoke tests: `POST /api/chat/ollama`, `POST /api/chat/deepseek`.
 
 ### `QwenOnline` (cloud)
@@ -154,14 +159,20 @@ QwenOnline__Model=qwen-max
 ### `PiConnection`
 
 Base `appsettings.json` may contain a **live PI template** (`UseDemoMode: false`, Basic auth placeholders).  
-Development overrides keep local work on demo PI:
+Development overrides prefer the local PI WebAPI **emulator/simulator**:
 
 ```json
 "PiConnection": {
-  "UseDemoMode": true,
-  "AuthMode": "Demo"
+  "UseDemoMode": false,
+  "BaseUrl": "http://localhost:5000/piwebapi",
+  "DataArchiveName": "PIServer1",
+  "DefaultAfServer": "AFServer1",
+  "DefaultAfDatabase": "NuGreen",
+  "AuthMode": "Anonymous"
 }
 ```
+
+At startup in Development, Infrastructure registers a **prefer-simulator router**: it probes the emulator and uses it when reachable; otherwise Demo PI. It **re-probes every ~10s**, so starting the emulator after the API switches `/health/pi` to `source: "simulator"` without a restart. When on fallback: `source: "demo-fallback"`.
 
 For a real server (non-Development or explicit config):
 

@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using PiAiAssistant.Application.Chat;
+using PiAiAssistant.Application.Fleet;
 using PiAiAssistant.Application.Tags;
 using PiAiAssistant.Domain.Enums;
 using PiAiAssistant.Domain.Interfaces;
@@ -18,7 +19,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
 
 var app = builder.Build();
 await app.Services.InitializeInfrastructureAsync();
@@ -38,19 +39,28 @@ app.MapGet("/health", () => Results.Ok(new
 {
     status = "ok",
     service = "PiAiAssistant.Api",
+    product = "AFAG PI Vision AI — Role-Driven Decision Assistant",
     architecture = "Clean Architecture",
     utc = DateTimeOffset.UtcNow
 }));
 
-app.MapGet("/health/pi", async (IPiConnectivity pi, IOptions<PiConnectionOptions> options, CancellationToken ct) =>
+app.MapGet("/health/pi", async (
+    IPiConnectivity pi,
+    IOptions<PiConnectionOptions> options,
+    PiDataSourceRuntimeInfo runtime,
+    CancellationToken ct) =>
 {
     var connected = await pi.TryConnectAsync(ct);
     var status = connected ? await pi.GetSystemStatusAsync(ct) : "Unable to connect.";
     return Results.Ok(new
     {
         connected,
-        demoMode = options.Value.UseDemoMode,
+        demoMode = runtime.UseDemo,
+        source = runtime.ActiveSource,
+        developmentPreferSimulator = runtime.DevelopmentPreferSimulator,
+        fellBackFromSimulator = runtime.FellBackFromSimulator,
         baseUrl = options.Value.BaseUrl,
+        configuredBaseUrl = runtime.ConfiguredBaseUrl,
         dataArchive = options.Value.DataArchiveName,
         status
     });
@@ -87,7 +97,54 @@ app.MapGet("/health/ollama", async (IOptions<OllamaOptions> options, Cancellatio
     }
 });
 
+var fleet = app.MapGroup("/api/fleet").WithTags("AFAG Semantic");
+
+fleet.MapGet("/kingdom", async (IAfagSemanticService svc, CancellationToken ct) =>
+    Results.Ok(await svc.GetKingdomOverviewAsync(ct))).WithName("GetKingdomOverview");
+
+fleet.MapGet("/sectors/{sectorCode}", async (string sectorCode, IAfagSemanticService svc, CancellationToken ct) =>
+{
+    var result = await svc.GetSectorOverviewAsync(sectorCode, ct);
+    return result is null ? Results.NotFound(new { message = $"Sector '{sectorCode}' not found." }) : Results.Ok(result);
+}).WithName("GetSectorOverview");
+
+fleet.MapGet("/sectors/{sectorCode}/plants/below-target", async (string sectorCode, IAfagSemanticService svc, CancellationToken ct) =>
+    Results.Ok(await svc.RankPlantsBelowTargetAsync(sectorCode, ct))).WithName("RankPlantsBelowTarget");
+
+fleet.MapGet("/plants/{plantCode}", async (string plantCode, IAfagSemanticService svc, CancellationToken ct) =>
+{
+    var result = await svc.GetPlantOverviewAsync(plantCode, ct);
+    return result is null ? Results.NotFound(new { message = $"Plant '{plantCode}' not found." }) : Results.Ok(result);
+}).WithName("GetPlantOverview");
+
+fleet.MapGet("/plants/{plantCode}/blocks/{blockCode}/units/{unitCode}", async (
+    string plantCode, string blockCode, string unitCode, IAfagSemanticService svc, CancellationToken ct) =>
+{
+    var result = await svc.GetUnitOverviewAsync(plantCode, blockCode, unitCode, ct);
+    return result is null ? Results.NotFound(new { message = "Unit not found." }) : Results.Ok(result);
+}).WithName("GetUnitOverview");
+
+var briefings = app.MapGroup("/api/briefings").WithTags("Proactive");
+
+briefings.MapGet("/demo", async (string? lang, IBriefingService svc, CancellationToken ct) =>
+    Results.Ok(await svc.GetDemoPushesAsync(lang ?? "en", ct))).WithName("GetDemoBriefings");
+
+briefings.MapGet("/executive/morning", async (string? lang, IBriefingService svc, CancellationToken ct) =>
+    Results.Ok(await svc.GetMorningExecutiveBriefAsync(lang ?? "en", ct))).WithName("MorningExecutiveBrief");
+
+briefings.MapGet("/sector/{sectorCode}", async (string sectorCode, string? lang, IBriefingService svc, CancellationToken ct) =>
+    Results.Ok(await svc.GetSectorDeviationAlertAsync(sectorCode, lang ?? "en", ct))).WithName("SectorDeviationAlert");
+
+briefings.MapGet("/plants/{plantCode}", async (string plantCode, string? lang, IBriefingService svc, CancellationToken ct) =>
+    Results.Ok(await svc.GetPlantDigestAsync(plantCode, lang ?? "en", ct))).WithName("PlantDigest");
+
+briefings.MapGet("/alarms/{plantCode}/{blockCode}/{unitCode}", async (
+    string plantCode, string blockCode, string unitCode, string? lang, IBriefingService svc, CancellationToken ct) =>
+    Results.Ok(await svc.GetOperatorAlarmCardAsync(plantCode, blockCode, unitCode, lang ?? "en", ct)))
+    .WithName("OperatorAlarmCard");
+
 var tags = app.MapGroup("/api/tags").WithTags("Tags");
+
 
 tags.MapGet("/search", async (string q, int? maxResults, ITagIntelligenceService svc, CancellationToken ct) =>
 {
@@ -230,7 +287,17 @@ chat.MapGet("/models", (IOptions<OllamaOptions> options) =>
     });
 }).WithName("ListLocalChatModels");
 
-chat.MapPost("/", async (ChatAskRequest request, ITagAssistant assistant, CancellationToken ct) =>
+chat.MapPost("/", async (ChatAskRequest request, IDecisionAssistant assistant, CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Message))
+    {
+        return Results.BadRequest(new { message = "message is required" });
+    }
+
+    return Results.Ok(await assistant.AskAsync(request, ct));
+}).WithName("AskDecisionAssistant");
+
+chat.MapPost("/tags", async (ChatAskRequest request, ITagAssistant assistant, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Message))
     {

@@ -23,14 +23,20 @@ Dependencies point **inward only**. Infrastructure and Presentation reference Ap
 
 | Layer | Examples |
 |---|---|
-| Domain | `PiPoint`, `TagSample`, `IPiPointReader`, `ITagValueReader`, `IAfAttributeReader`, `IPiConnectivity` |
-| Application | `ITagIntelligenceService`, `TagResolver`, `TagIntelligenceService`, `ITagCatalogRepository`, `ITagCatalogSyncService`, `ITagAssistant` |
-| Infrastructure | `PiWebApiDataSource`, `DemoPiDataSource`, `TagCatalogRepository`, `TagAssistant` (LLM adapter), `AddInfrastructure` |
+| Domain | `PiPoint`, `TagSample`, `Sector`, `Plant`, `GenerationUnit`, `IPiPointReader`, `ITagValueReader`, `IAfagHierarchyReader`, `ISopKnowledgeStore` |
+| Application | `ITagIntelligenceService`, `IAfagSemanticService`, `IBriefingService`, `IDecisionAssistant`, `ITagAssistant` |
+| Infrastructure | `PiWebApiDataSource`, `DemoPiDataSource`, `AfagDemoHierarchyReader`, `InMemorySopStore`, `DecisionAssistant`, `TagAssistant`, `AddInfrastructure` |
 | Presentation | `Program.cs` minimal APIs only |
+
+## Role-driven path (primary)
+
+Persona router + semantic layer (Plant/Block/Unit/KPI) — see [ROLE-DRIVEN-DECISION-ASSISTANT.md](ROLE-DRIVEN-DECISION-ASSISTANT.md). Tag intelligence remains a supporting slice for specialist drills.
 
 ## Demo vs live PI (Strategy + DI)
 
 Selected **once** in `Infrastructure/DependencyInjection.cs` from `PiConnectionOptions.UseDemoMode` / `AuthMode`. Application use cases never branch on demo vs live; they only call Domain ports.
+
+In **Development**, when `UseDemoMode` is false, the composition root probes the configured BaseUrl (PI WebAPI emulator on `localhost:5000` by default). If reachable → `PiWebApiDataSource` (`source: simulator`). If not → Demo fallback (`source: demo-fallback`). Non-Development hosts never auto-fallback.
 
 ## Auth modes (Infrastructure)
 

@@ -1,9 +1,15 @@
+using PiAiAssistant.Domain.Entities;
+using PiAiAssistant.Domain.Enums;
+
 namespace PiAiAssistant.Application.Chat;
 
 public sealed record ChatAskRequest(
     string Message,
     string? ConversationId = null,
-    string? Model = null);
+    string? Model = null,
+    AssistantPersona? Persona = null,
+    string? Language = null,
+    string? ScreenLevel = null);
 
 public sealed record ChatAskResponse(
     string ConversationId,
@@ -11,11 +17,16 @@ public sealed record ChatAskResponse(
     IReadOnlyList<ToolTraceItem> ToolTrace,
     IReadOnlyList<ChatSource> Sources,
     VisualizationPayload? Visualization = null,
-    string? Model = null);
+    string? Model = null,
+    AssistantPersona? Persona = null,
+    string? RecommendedAction = null,
+    string? VisionJumpPath = null,
+    IReadOnlyList<KpiSnapshot>? Kpis = null,
+    bool UsedDeterministicFallback = false);
 
 public sealed record ToolTraceItem(string Tool, string Status, long DurationMs);
 
-public sealed record ChatSource(string Type, string? CanonicalTagName, string? WebId);
+public sealed record ChatSource(string Type, string? CanonicalTagName, string? WebId, string? BusinessObject = null);
 
 /// <summary>Optional chart payload returned with chat so the UI can render trends.</summary>
 public sealed record VisualizationPayload(
@@ -30,8 +41,14 @@ public sealed record ChartSeriesPayload(
 
 public sealed record ChartPointPayload(DateTimeOffset TimestampUtc, double? Value);
 
-/// <summary>PI assistant (tools → Application services → structured answer + optional chart).</summary>
+/// <summary>Legacy tag-first assistant (kept for deep tag drills).</summary>
 public interface ITagAssistant
+{
+    Task<ChatAskResponse> AskAsync(ChatAskRequest request, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Role-driven decision assistant: persona → tools over business objects (need-first).</summary>
+public interface IDecisionAssistant
 {
     Task<ChatAskResponse> AskAsync(ChatAskRequest request, CancellationToken cancellationToken = default);
 }

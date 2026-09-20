@@ -1,6 +1,6 @@
-# AvevaPi / Tag Intelligence Assistant
+# AvevaPi / AFAG PI Vision AI
 
-.NET **10** Clean Architecture backend for AVEVA PI Web API + Tag Intelligence (deterministic API first, AI chat + visualization second).
+.NET **10** Clean Architecture backend: **role-driven decision assistant** for AFAG generation displays (need-first), plus retained tag-intelligence APIs for deep drills.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ Api (Presentation) → Application → Domain
                   Infrastructure
 ```
 
-See [docs/CLEAN-ARCHITECTURE.md](docs/CLEAN-ARCHITECTURE.md).
+See [docs/CLEAN-ARCHITECTURE.md](docs/CLEAN-ARCHITECTURE.md) and [docs/ROLE-DRIVEN-DECISION-ASSISTANT.md](docs/ROLE-DRIVEN-DECISION-ASSISTANT.md).
 
 ## Quick start
 
@@ -18,21 +18,22 @@ See [docs/CLEAN-ARCHITECTURE.md](docs/CLEAN-ARCHITECTURE.md).
 dotnet run --project src/PiAiAssistant.Api
 ```
 
-- **App UI (chat + charts):** http://localhost:5041/app/index.html  
+- **App UI (4 levels + personas + briefings):** http://localhost:5041/app/index.html  
 - Scalar: http://localhost:5041/scalar/v1  
 
-## What the assistant can do
+## What the assistant does
 
-Natural-language PI questions via **read-only tools** (search, specs, current value, history, summary stats, related tags, multi-tag compare). Charts render in the UI when trend tools run. Not unrestricted PI/SQL access — that is intentional for safety.
+Answers **business-language** questions for VP, Sector Ops, Plant Manager, Shift Operator, and Reliability — through Plant/Block/Unit/KPI tools and SOP citations. Proactive briefs are available per persona (EN/AR). Users should not need PI tag names.
 
-## Chart APIs
+Tag tools remain at `POST /api/chat/tags` for specialist drills.
 
-- `GET /api/tags/chart?reference={TagName}`
-- `GET /api/tags/summary?reference={TagName}`
-- `GET /api/tags/compare?references=TagA,TagB`
+## Requirements
+
+Product guideline and AFAG screen mockups: [`reqs/`](reqs/).
 
 ## Docs
 
+- [Role-Driven Decision Assistant](docs/ROLE-DRIVEN-DECISION-ASSISTANT.md)
+- [Tag Intelligence Assistant](docs/TAG-INTELLIGENCE-ASSISTANT.md) (underlying tag APIs)
 - [Clean Architecture](docs/CLEAN-ARCHITECTURE.md)
-- [Tag Intelligence Assistant](docs/TAG-INTELLIGENCE-ASSISTANT.md)
 - [PI System from scratch](docs/PI-SYSTEM-FROM-SCRATCH.md)

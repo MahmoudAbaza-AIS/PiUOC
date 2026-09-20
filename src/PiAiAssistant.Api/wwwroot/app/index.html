@@ -3,56 +3,84 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PI Tag Intelligence</title>
+  <title>AFAG · PI Vision AI</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/app/styles.css" />
 </head>
 <body>
   <header class="top">
-    <div>
-      <h1>PI Tag Intelligence</h1>
-      <p class="sub">Ask about tags · view trends · demo or live PI</p>
+    <div class="brand">
+      <div class="brand-mark">AFAG</div>
+      <div>
+        <h1>PI Vision AI</h1>
+        <p class="sub">Role-driven decision assistant · need-first, not tag-first</p>
+      </div>
     </div>
+    <nav class="levels" id="levelNav" aria-label="Screen level">
+      <button type="button" data-level="kingdom" class="active">KSA</button>
+      <button type="button" data-level="sector">COA</button>
+      <button type="button" data-level="plant">PP09</button>
+      <button type="button" data-level="unit">GT01</button>
+    </nav>
     <div class="status" id="statusPills">
       <span class="pill" id="piPill">PI…</span>
       <span class="pill" id="ollamaPill">Ollama…</span>
     </div>
   </header>
 
-  <main class="grid">
-    <section class="panel chat-panel">
-      <h2>Assistant</h2>
-      <div class="chat-toolbar">
-        <label for="modelSelect">Local model</label>
-        <select id="modelSelect" title="Ollama model for Tag Assistant">
-          <option value="qwen">qwen3:8b</option>
-          <option value="deepseek">deepseek-r1:5b</option>
-        </select>
-      </div>
-      <div id="messages" class="messages" aria-live="polite"></div>
-      <form id="chatForm" class="composer">
-        <input id="chatInput" type="text" placeholder="e.g. Show trend for Houston.B-210.Temperature" autocomplete="off" required />
-        <button type="submit">Ask</button>
-      </form>
-      <p class="hint">Uses read-only tools only. Switch between Qwen and DeepSeek locally via Ollama.</p>
-    </section>
+  <div class="crumbs" id="crumbs">Kingdom › Fleet</div>
 
-    <section class="panel viz-panel">
-      <div class="viz-head">
-        <h2>Visualization</h2>
-        <div class="viz-controls">
-          <input id="tagInput" type="text" value="Houston.B-210.Temperature" placeholder="Tag name" />
-          <select id="hoursSelect">
-            <option value="1">1h</option>
-            <option value="6">6h</option>
-            <option value="24" selected>24h</option>
-          </select>
-          <button type="button" id="loadChartBtn">Load chart</button>
-        </div>
+  <main class="layout">
+    <section class="panel screen-panel">
+      <div class="screen-head">
+        <h2 id="screenTitle">Kingdom overview</h2>
+        <button type="button" id="refreshScreenBtn" class="ghost">Refresh</button>
       </div>
-      <canvas id="trendChart" height="120"></canvas>
+      <div id="kpiTiles" class="kpi-grid"></div>
+      <div id="screenBody" class="screen-body"></div>
+      <canvas id="trendChart" height="100"></canvas>
       <pre id="vizMeta" class="meta"></pre>
     </section>
+
+    <aside class="side">
+      <section class="panel push-panel">
+        <h2>Proactive push</h2>
+        <div class="row">
+          <select id="langSelect">
+            <option value="en">English</option>
+            <option value="ar">العربية</option>
+          </select>
+          <button type="button" id="loadBriefBtn">Load persona brief</button>
+        </div>
+        <div id="briefCard" class="brief-card">Select a persona and load the scheduled / alarm push.</div>
+      </section>
+
+      <section class="panel chat-panel">
+        <h2>Decision assistant</h2>
+        <div class="chat-toolbar">
+          <label for="personaSelect">Persona</label>
+          <select id="personaSelect">
+            <option value="Executive">VP / Executive</option>
+            <option value="SectorOps">Sector Ops</option>
+            <option value="PlantManager">Plant Manager</option>
+            <option value="ShiftOperator">Shift Operator</option>
+            <option value="ReliabilityEngineer">Reliability</option>
+          </select>
+          <label for="modelSelect">Model</label>
+          <select id="modelSelect">
+            <option value="qwen">qwen</option>
+            <option value="deepseek">deepseek</option>
+          </select>
+        </div>
+        <div class="prompts" id="promptChips"></div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="chatForm" class="composer">
+          <input id="chatInput" type="text" placeholder="Ask in business language — no tag names needed" autocomplete="off" required />
+          <button type="submit">Ask</button>
+        </form>
+        <p class="hint">Answers cite AFAG KPIs / SOP and propose a next action. Tag drill-down: <code>POST /api/chat/tags</code>.</p>
+      </section>
+    </aside>
   </main>
 
   <script src="/app/app.js"></script>
