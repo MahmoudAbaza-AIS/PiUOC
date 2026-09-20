@@ -21,6 +21,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(x => x.PiPointName).HasMaxLength(512);
             e.Property(x => x.AfAttributePath).HasMaxLength(1024);
             e.Property(x => x.PiWebId).HasMaxLength(255);
+            e.Property(x => x.ExpectedMin).HasPrecision(18, 4);
+            e.Property(x => x.ExpectedMax).HasPrecision(18, 4);
         });
 
         modelBuilder.Entity<TagAliasEntityRow>(e =>

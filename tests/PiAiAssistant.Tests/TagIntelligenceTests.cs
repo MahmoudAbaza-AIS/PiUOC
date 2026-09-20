@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PiAiAssistant.Application;
@@ -15,11 +14,8 @@ namespace PiAiAssistant.Tests;
 
 public class TagIntelligenceTests
 {
-    private static async Task<(ServiceProvider Sp, SqliteConnection Connection)> BuildAsync()
+    private static async Task<ServiceProvider> BuildAsync()
     {
-        var connection = new SqliteConnection("Data Source=:memory:");
-        await connection.OpenAsync();
-
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddMemoryCache();
@@ -35,7 +31,7 @@ public class TagIntelligenceTests
         services.AddSingleton<IPiPointReader>(sp => sp.GetRequiredService<DemoPiDataSource>());
         services.AddSingleton<ITagValueReader>(sp => sp.GetRequiredService<DemoPiDataSource>());
         services.AddSingleton<IAfAttributeReader>(sp => sp.GetRequiredService<DemoPiDataSource>());
-        services.AddDbContext<AppDbContext>(o => o.UseSqlite(connection));
+        services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase("TagCatalogTest_" + Guid.NewGuid()));
         services.AddScoped<ITagCatalogRepository, TagCatalogRepository>();
         services.AddApplication();
 
@@ -45,16 +41,14 @@ public class TagIntelligenceTests
         await db.Database.EnsureCreatedAsync();
         await TagCatalogSeeder.SeedAsync(db);
 
-        return (sp, connection);
+        return sp;
     }
 
     [Fact]
     public async Task GetTagDetails_ExactKnownTag_ReturnsFoundWithUnitsAndCurrentValue()
     {
-        var (sp, connection) = await BuildAsync();
-        await using var _ = connection;
-        await using var provider = sp;
-        await using var scope = sp.CreateAsyncScope();
+        await using var provider = await BuildAsync();
+        await using var scope = provider.CreateAsyncScope();
 
         var svc = scope.ServiceProvider.GetRequiredService<ITagIntelligenceService>();
         var result = await svc.GetTagDetailsAsync("Plant1.Boiler03.SteamPressure");
@@ -71,10 +65,8 @@ public class TagIntelligenceTests
     [Fact]
     public async Task Resolve_Alias_MapsToCanonical()
     {
-        var (sp, connection) = await BuildAsync();
-        await using var _ = connection;
-        await using var provider = sp;
-        await using var scope = sp.CreateAsyncScope();
+        await using var provider = await BuildAsync();
+        await using var scope = provider.CreateAsyncScope();
 
         var resolver = scope.ServiceProvider.GetRequiredService<ITagResolver>();
         var result = await resolver.ResolveAsync("Boiler03.SteamPressure");
@@ -86,10 +78,8 @@ public class TagIntelligenceTests
     [Fact]
     public async Task Search_Pressure_ReturnsMultipleCandidates()
     {
-        var (sp, connection) = await BuildAsync();
-        await using var _ = connection;
-        await using var provider = sp;
-        await using var scope = sp.CreateAsyncScope();
+        await using var provider = await BuildAsync();
+        await using var scope = provider.CreateAsyncScope();
 
         var svc = scope.ServiceProvider.GetRequiredService<ITagIntelligenceService>();
         var hits = await svc.SearchTagsAsync("SteamPressure", 10);
@@ -100,10 +90,8 @@ public class TagIntelligenceTests
     [Fact]
     public async Task UnknownTag_ReturnsNotFound()
     {
-        var (sp, connection) = await BuildAsync();
-        await using var _ = connection;
-        await using var provider = sp;
-        await using var scope = sp.CreateAsyncScope();
+        await using var provider = await BuildAsync();
+        await using var scope = provider.CreateAsyncScope();
 
         var svc = scope.ServiceProvider.GetRequiredService<ITagIntelligenceService>();
         var result = await svc.GetTagDetailsAsync("DOES_NOT_EXIST_TAG_XYZ");

@@ -68,8 +68,8 @@ public static class DependencyInjection
             services.AddScoped<IAfAttributeReader>(sp => sp.GetRequiredService<PiWebApiDataSource>());
         }
 
-        var cs = configuration.GetConnectionString("TagCatalog") ?? "Data Source=tag-catalog.db";
-        services.AddDbContext<AppDbContext>(o => o.UseSqlite(cs));
+        var cs = configuration.GetConnectionString("TagCatalog");
+        services.AddDbContext<AppDbContext>(o => o.UseSqlServer(cs));
         services.AddScoped<ITagCatalogRepository, TagCatalogRepository>();
         services.AddScoped<IChatAuditStore, EfChatAuditStore>();
 
@@ -113,7 +113,7 @@ public static class DependencyInjection
     {
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.EnsureCreatedAsync(cancellationToken);
+        await db.Database.MigrateAsync(cancellationToken);
         await TagCatalogSeeder.SeedAsync(db, cancellationToken);
     }
 
