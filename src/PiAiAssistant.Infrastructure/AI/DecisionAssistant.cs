@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -32,6 +34,14 @@ public sealed class DecisionAssistant(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+
+    private static readonly Regex ThinkBlockRegex = new(
+        @"<think\b[^>]*>[\s\S]*?</think>",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex ThinkOpenRegex = new(
+        @"<think\b[^>]*>[\s\S]*$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public async Task<ChatAskResponse> AskAsync(ChatAskRequest request, CancellationToken cancellationToken = default)
     {
@@ -90,9 +100,11 @@ public sealed class DecisionAssistant(
                 },
                 cancellationToken);
 
-            var answer = response.Text?.Trim();
+            // qwen3 / deepseek-r1 often return <think>…</think> with an empty visible answer.
+            var answer = VisibleAssistantText(response);
             if (string.IsNullOrWhiteSpace(answer))
             {
+                logger.LogInformation("LLM returned no visible answer; using deterministic semantic narrative.");
                 answer = deterministic.Answer;
             }
 
@@ -412,6 +424,44 @@ public sealed class DecisionAssistant(
         if (m.Contains("baseline") || m.Contains("anomaly") || m.Contains("eaf") || m.Contains("eford"))
             return AssistantPersona.ReliabilityEngineer;
         return AssistantPersona.Executive;
+    }
+
+    private static string? VisibleAssistantText(ChatResponse response)
+    {
+        if (!string.IsNullOrWhiteSpace(response.Text))
+        {
+            var fromText = StripThinkBlocks(response.Text);
+            if (!string.IsNullOrWhiteSpace(fromText))
+            {
+                return fromText;
+            }
+        }
+
+        var builder = new StringBuilder();
+        foreach (var message in response.Messages)
+        {
+            foreach (var content in message.Contents)
+            {
+                if (content is TextContent text && !string.IsNullOrWhiteSpace(text.Text))
+                {
+                    builder.AppendLine(text.Text);
+                }
+            }
+        }
+
+        return StripThinkBlocks(builder.ToString());
+    }
+
+    private static string? StripThinkBlocks(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var stripped = ThinkBlockRegex.Replace(text, string.Empty);
+        stripped = ThinkOpenRegex.Replace(stripped, string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(stripped) ? null : stripped;
     }
 
     private static string InferLanguage(string message)

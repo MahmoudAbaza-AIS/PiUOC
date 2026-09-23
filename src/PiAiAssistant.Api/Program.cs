@@ -1,15 +1,18 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using PiAiAssistant.Infrastructure;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.ConfigureHttpJsonOptions(o =>
+static void ConfigureJson(JsonSerializerOptions options)
 {
-    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
-});
+    options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.Converters.Add(new JsonStringEnumConverter());
+}
 
-builder.Services.AddControllers();
+builder.Services.ConfigureHttpJsonOptions(o => ConfigureJson(o.SerializerOptions));
+builder.Services.AddControllers().AddJsonOptions(o => ConfigureJson(o.JsonSerializerOptions));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());

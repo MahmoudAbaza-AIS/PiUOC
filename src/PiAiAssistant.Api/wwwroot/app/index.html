@@ -3,71 +3,46 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AFAG · PI Vision AI</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <title>AFAG · COA Sector</title>
+  <script src="/app/lib/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/app/styles.css" />
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <div class="brand-mark">AFAG</div>
-      <div>
-        <h1>PI Vision AI</h1>
-        <p class="sub">Role-driven decision assistant · need-first, not tag-first</p>
-      </div>
-    </div>
-    <nav class="levels" id="levelNav" aria-label="Screen level">
-      <button type="button" data-level="kingdom" class="active">KSA</button>
-      <button type="button" data-level="sector">COA</button>
-      <button type="button" data-level="plant">PP09</button>
-      <button type="button" data-level="unit">GT01</button>
-    </nav>
-    <div class="status" id="statusPills">
-      <span class="pill" id="piPill">PI…</span>
-      <span class="pill" id="ollamaPill">Ollama…</span>
-    </div>
-  </header>
-
-  <div class="crumbs" id="crumbs">Kingdom › Fleet</div>
-
   <main class="layout">
-    <section class="panel screen-panel">
-      <div class="screen-head">
-        <h2 id="screenTitle">Kingdom overview</h2>
-        <button type="button" id="refreshScreenBtn" class="ghost">Refresh</button>
-      </div>
-      <div id="kpiTiles" class="kpi-grid"></div>
-      <div id="screenBody" class="screen-body"></div>
-      <canvas id="trendChart" height="100"></canvas>
-      <pre id="vizMeta" class="meta"></pre>
-    </section>
-
+    <!-- Existing decision-assistant panel, docked to the right of the sector board. -->
     <aside class="side">
-      <section class="panel push-panel">
-        <h2>Proactive push</h2>
-        <div class="row">
-          <select id="langSelect">
-            <option value="en">English</option>
-            <option value="ar">العربية</option>
-          </select>
-          <button type="button" id="loadBriefBtn">Load persona brief</button>
-        </div>
-        <div id="briefCard" class="brief-card">Select a persona and load the scheduled / alarm push.</div>
-      </section>
-
+      <button type="button" id="chatToggle" class="chat-toggle" aria-expanded="true" aria-controls="chatDock" title="Hide assistant">
+        <span class="chat-toggle-icon" aria-hidden="true">›</span>
+        <span class="chat-toggle-text" data-i18n="hide">Hide</span>
+        <span class="chat-toggle-label" data-i18n="assistant">Assistant</span>
+      </button>
+      <div id="chatDock" class="chat-dock">
       <section class="panel chat-panel">
-        <h2>Decision assistant</h2>
+        <div class="side-head">
+          <div class="brand-mark">AFAG</div>
+          <nav class="levels" id="levelNav" aria-label="Screen level">
+            <button type="button" data-level="kingdom">KSA</button>
+            <button type="button" data-level="sector" class="active">COA</button>
+            <button type="button" data-level="plant">PP09</button>
+            <button type="button" data-level="unit">GT01</button>
+          </nav>
+          <div class="status" id="statusPills">
+            <span class="pill" id="piPill">PI…</span>
+            <span class="pill" id="ollamaPill">Ollama…</span>
+          </div>
+        </div>
+        <h2 data-i18n="assistantTitle">Decision assistant</h2>
         <div class="chat-toolbar">
-          <label for="personaSelect">Persona</label>
+          <label for="personaSelect" data-i18n="personaLabel">Persona</label>
           <select id="personaSelect">
-            <option value="Executive">VP / Executive</option>
-            <option value="SectorOps">Sector Ops</option>
-            <option value="PlantManager">Plant Manager</option>
-            <option value="ShiftOperator">Shift Operator</option>
-            <option value="ReliabilityEngineer">Reliability</option>
+            <option value="Executive" data-i18n="personaExecutive">VP / Executive</option>
+            <option value="SectorOps" data-i18n="personaSectorOps" selected>Sector Ops</option>
+            <option value="PlantManager" data-i18n="personaPlantManager">Plant Manager</option>
+            <option value="ShiftOperator" data-i18n="personaShiftOperator">Shift Operator</option>
+            <option value="ReliabilityEngineer" data-i18n="personaReliability">Reliability</option>
           </select>
-          <label for="modelSelect">Model</label>
-          <select id="modelSelect">
+          <label for="modelSelect" data-i18n="modelLabel">Model</label>
+          <select id="modelSelect" title="Not used while the POC mock is active">
             <option value="qwen">qwen</option>
             <option value="deepseek">deepseek</option>
           </select>
@@ -75,12 +50,328 @@
         <div class="prompts" id="promptChips"></div>
         <div id="messages" class="messages" aria-live="polite"></div>
         <form id="chatForm" class="composer">
-          <input id="chatInput" type="text" placeholder="Ask in business language — no tag names needed" autocomplete="off" required />
-          <button type="submit">Ask</button>
+          <input id="chatInput" type="text" data-i18n-placeholder="askPlaceholder" placeholder="Ask about the COA board" autocomplete="off" required />
+          <button type="submit" data-i18n="ask">Ask</button>
         </form>
-        <p class="hint">Answers cite AFAG KPIs / SOP and propose a next action. Tag drill-down: <code>POST /api/chat/tags</code>.</p>
+        <p class="hint" data-i18n="hint">POC mock — the same question always returns the same answer. No model call.</p>
       </section>
+
+      <section class="panel push-panel is-collapsed" id="pushPanel">
+        <button type="button" id="pushToggle" class="push-toggle" aria-expanded="false" aria-controls="pushBody" title="Show proactive push">
+          <span class="push-toggle-icon" aria-hidden="true">›</span>
+          <span data-i18n="pushTitle">Proactive push</span>
+        </button>
+        <div id="pushBody" class="push-body" hidden>
+          <div class="row">
+            <select id="langSelect" aria-label="Language">
+              <option value="en">English</option>
+              <option value="ar">العربية</option>
+            </select>
+            <button type="button" id="loadBriefBtn" data-i18n="loadBrief">Load persona brief</button>
+          </div>
+          <div id="briefCard" class="brief-card" data-i18n="briefEmpty">Select a persona and load the scheduled / alarm push.</div>
+        </div>
+      </section>
+      </div>
     </aside>
+
+    <div class="main-view">
+      <!-- Sector-Level board. Figures are the values visible on reqs/Sector-Level.png. -->
+      <section id="sectorDash" class="vision" aria-label="COA sector display">
+        <header class="vision-head">
+          <div class="rev">COA REV. 1</div>
+          <svg class="se-logo" viewBox="0 0 78 32" aria-label="Saudi Electricity">
+            <path d="M4 22c6-8 12-9 18-2 6 7 12 8 18 1 6-8 12-9 18-2 5 6 10 7 16 2" fill="none" stroke="#3ec4ff" stroke-width="2.4" stroke-linecap="round"/>
+            <text x="6" y="16" fill="#e9f6ff" font-size="14" font-weight="700" font-family="Segoe UI, sans-serif">se</text>
+          </svg>
+          <nav class="areas" aria-label="Operating area">
+            <span class="chev" aria-hidden="true">›</span>
+            <span>KSA</span>
+            <span class="on" aria-current="page">COA</span>
+            <span>EOA</span>
+            <span>SOA</span>
+            <span>WOA</span>
+          </nav>
+          <div class="head-spacer"></div>
+          <div class="insights" title="Insights">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5c5.5 0 9.5 4.2 10.8 6.2a1.2 1.2 0 0 1 0 1.6C21.5 14.8 17.5 19 12 19S2.5 14.8 1.2 12.8a1.2 1.2 0 0 1 0-1.6C2.5 9.2 6.5 5 12 5zm0 2.2c-3.8 0-7 3-8.4 4.8 1.4 1.8 4.6 4.8 8.4 4.8s7-3 8.4-4.8C19 10.2 15.8 7.2 12 7.2zm0 1.8a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>
+            Insights
+          </div>
+          <div class="afag-lockup">
+            <div class="afag-word">AFAG</div>
+            <div class="afag-sub">Advanced Feed Analytics<br />in Generation</div>
+          </div>
+          <div class="head-tools" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 5h16l-6 7v6l-4 2v-8L4 5z"/></svg>
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 19V5h2v14H4zm7 0V9h2v10h-2zm7 0v-6h2v6h-2z"/></svg>
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19.4 13a7.8 7.8 0 0 0 .1-1 7.8 7.8 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.3 2.4a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.3-2.4a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6zM13 15.5A3.5 3.5 0 1 1 13 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
+          </div>
+        </header>
+
+        <div class="board">
+          <div class="col left-col">
+            <div class="kpi-pair">
+              <article class="v-card kpi-card">
+                <div class="kpi-top">
+                  <div>
+                    <div class="kpi-value">12,806 <span class="kpi-unit">MW</span></div>
+                    <div class="kpi-label">Gross Power</div>
+                  </div>
+                  <svg class="kpi-ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="#7fd4ff" d="M13 2 4 14h7l-1 8 10-14h-7V2z"/></svg>
+                </div>
+              </article>
+              <article class="v-card kpi-card">
+                <div class="kpi-top">
+                  <div>
+                    <div class="kpi-value">12,805 <span class="kpi-unit">MW</span></div>
+                    <div class="kpi-label">Net Power</div>
+                  </div>
+                  <svg class="kpi-ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="#7fd4ff" d="M13 2 4 14h7l-1 8 10-14h-7V2z"/></svg>
+                </div>
+              </article>
+            </div>
+            <div class="kpi-pair">
+              <article class="v-card kpi-card">
+                <div class="kpi-top">
+                  <div>
+                    <div class="kpi-value">18,116 <span class="kpi-unit">MW</span></div>
+                    <div class="kpi-label">Total Cap.</div>
+                  </div>
+                  <svg class="kpi-ico" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="2" y="7" width="18" height="11" rx="2" fill="none" stroke="#3ddc84" stroke-width="1.8"/>
+                    <rect x="20.2" y="10" width="2" height="5" rx="0.6" fill="#3ddc84"/>
+                    <rect x="4" y="9.2" width="11" height="6.6" rx="1" fill="#3ddc84"/>
+                  </svg>
+                </div>
+              </article>
+              <article class="v-card kpi-card gauge-card">
+                <svg class="gauge" viewBox="0 0 120 78" aria-label="Loading factor 71 percent">
+                  <path d="M14 66 A46 46 0 0 1 106 66" fill="none" stroke="#16385a" stroke-width="9" stroke-linecap="round"/>
+                  <path d="M14 66 A46 46 0 0 1 106 66" fill="none" stroke="#3ec4ff" stroke-width="9" stroke-linecap="round" stroke-dasharray="103 145"/>
+                  <line x1="60" y1="66" x2="80" y2="41" stroke="#f4fbff" stroke-width="2" stroke-linecap="round"/>
+                  <circle cx="60" cy="66" r="3" fill="#f4fbff"/>
+                  <text x="60" y="58" text-anchor="middle" fill="#f4fbff" font-size="20" font-weight="700" font-family="Segoe UI, sans-serif">71%</text>
+                </svg>
+                <div class="kpi-label">Loading Factor</div>
+              </article>
+            </div>
+            <article class="v-card inservice-card">
+              <span class="lbl">In-Service Units:</span>
+              <span class="num">179</span>
+              <span class="of">of 232</span>
+            </article>
+            <article class="v-card trend-card">
+              <div class="card-title">Generated MW</div>
+              <div class="trend-charts">
+                <div class="trend-plot"><canvas id="coaTrendTop"></canvas></div>
+                <div class="trend-plot"><canvas id="coaTrendBottom"></canvas></div>
+              </div>
+              <ul class="series-key" id="trendLegend"></ul>
+            </article>
+          </div>
+
+          <div class="col mid-col">
+            <div class="map-card">
+              <svg class="coa-map" viewBox="0 0 840 520" role="img" aria-label="COA plants on the central region map">
+                <defs>
+                  <linearGradient id="coaMapFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#2f78ae"/>
+                    <stop offset="1" stop-color="#1a5688"/>
+                  </linearGradient>
+                </defs>
+                <path d="M318 58 L368 46 L412 62 L448 98 L442 142 L478 168 L508 198 L498 238 L518 278 L492 322 L468 358 L430 398 L392 436 L348 452 L308 438 L274 400 L248 356 L228 312 L214 262 L232 214 L246 168 L268 122 L292 86 Z" fill="url(#coaMapFill)" stroke="#9ed0ee" stroke-width="2.5"/>
+
+                <g class="callout">
+                  <text class="pname" x="12" y="102">HAIL</text>
+                  <text class="pmw" x="12" y="124">465 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="150,110 230,110 370,110"/>
+                  <rect x="365" y="105" width="10" height="10" fill="#f0c14a"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="12" y="167">PP13</text>
+                  <text class="pmw" x="12" y="189">1,511 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="150,175 230,175 310,175"/>
+                  <rect x="305" y="170" width="10" height="10" fill="#3ddc84"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="12" y="227">PP12</text>
+                  <text class="pmw" x="12" y="249">1,560 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="150,235 220,235 295,235"/>
+                  <rect x="290" y="230" width="10" height="10" fill="#3ddc84"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="12" y="287">PP08</text>
+                  <text class="pmw" x="12" y="309">1,175 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="150,295 230,295 325,295"/>
+                  <rect x="320" y="290" width="10" height="10" fill="#f0c14a"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="12" y="347">PP10</text>
+                  <text class="pmw" x="12" y="369">2,781 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="150,355 240,355 350,355"/>
+                  <rect x="345" y="350" width="10" height="10" fill="#3ddc84"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="12" y="407">PP14</text>
+                  <text class="pmw" x="12" y="429">1,523 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="150,415 250,415 380,415"/>
+                  <rect x="375" y="410" width="10" height="10" fill="#3ddc84"/>
+                </g>
+
+                <g class="callout">
+                  <text class="pname" x="600" y="112">QCPP</text>
+                  <text class="pmw" x="600" y="134">240 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="585,120 520,120 430,130"/>
+                  <rect x="425" y="125" width="10" height="10" fill="#3ddc84"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="600" y="177">LAYLA</text>
+                  <circle cx="662" cy="172" r="8" fill="#1fa85a"/>
+                  <text class="gmark" x="662" y="176" text-anchor="middle">G</text>
+                  <text class="pmw" x="600" y="199">82 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="585,185 540,185 485,185"/>
+                  <rect x="480" y="180" width="10" height="10" fill="#3ddc84"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="600" y="242">JUBA</text>
+                  <circle cx="658" cy="237" r="8" fill="#1fa85a"/>
+                  <text class="gmark" x="658" y="241" text-anchor="middle">G</text>
+                  <text class="pmw" x="600" y="264">266 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="585,250 530,250 460,250"/>
+                  <rect x="455" y="245" width="10" height="10" fill="#3ddc84"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="600" y="307">PP07</text>
+                  <text class="pmw" x="600" y="329">1,008 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="585,315 520,315 440,315"/>
+                  <rect x="435" y="310" width="10" height="10" fill="#f0c14a"/>
+                </g>
+                <g class="callout">
+                  <text class="pname" x="600" y="372">PP09</text>
+                  <text class="pmw" x="600" y="394">2,196 <tspan class="u">MW</tspan></text>
+                  <polyline class="leader" points="585,380 510,380 420,380"/>
+                  <rect x="415" y="375" width="10" height="10" fill="#3ddc84"/>
+                </g>
+              </svg>
+            </div>
+            <article class="v-card legend-card">
+              <div class="legend-col">
+                <div class="legend-title">Legend</div>
+                <div class="legend-row"><i class="swatch healthy"></i> Healthy</div>
+                <div class="legend-row"><i class="swatch unhealthy"></i> Data unhealthy</div>
+                <div class="legend-row"><i class="swatch out"></i> Unavailability</div>
+              </div>
+              <div class="legend-col tech-legend">
+                <div class="legend-row"><i class="swatch steam"></i> Steam</div>
+                <div class="legend-row"><i class="swatch gas"></i> Gas</div>
+                <div class="legend-row"><i class="swatch combined"></i> Combined</div>
+              </div>
+            </article>
+          </div>
+
+          <div class="col right-col">
+            <div class="peaks">
+              <article class="v-card peak-card">
+                <div class="kpi-label">Daily Peak</div>
+                <div class="pk-val">14,553 <span>MW</span></div>
+                <div class="pk-sub">6:05 PM</div>
+              </article>
+              <article class="v-card peak-card">
+                <div class="kpi-label">Annual Peak</div>
+                <div class="pk-val">16,208 <span>MW</span></div>
+                <div class="pk-sub">22/06</div>
+              </article>
+            </div>
+            <article class="v-card gen-ydy">
+              <span class="kpi-label">Gen MWh Ydy:</span>
+              <strong>222,651</strong>
+              <em>MWh</em>
+            </article>
+            <div class="mini-charts">
+              <article class="v-card tech-card">
+                <div class="card-title">Generation by Tech.</div>
+                <div class="tech-body">
+                  <div class="tech-y" aria-hidden="true">
+                    <span>16,000</span>
+                    <span>12,000</span>
+                    <span>8,000</span>
+                    <span>4,000</span>
+                    <span>0</span>
+                    <span class="tech-unit">MW</span>
+                  </div>
+                  <div class="tech-cols">
+                    <div class="tech-col">
+                      <div class="tech-track"><div class="tech-fill" style="height:61.3%"><span class="tech-val">9,811</span></div></div>
+                      <span class="tech-name">Combined</span>
+                    </div>
+                    <div class="tech-col">
+                      <div class="tech-track"><div class="tech-fill" style="height:16.6%"><span class="tech-val">2,648</span></div></div>
+                      <span class="tech-name">Gas</span>
+                    </div>
+                    <div class="tech-col">
+                      <div class="tech-track"><div class="tech-fill" style="height:2.2%"><span class="tech-val">348</span></div></div>
+                      <span class="tech-name">Steam</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+              <article class="v-card fuel-card">
+                <div class="card-title">Fuel Cons.</div>
+                <div class="fuel-rows">
+                  <div class="fuel-row">
+                    <span class="flab">Heavy Oil Ydy</span>
+                    <div class="ftrack"><div class="ffill" style="width:0%"></div><span class="fval">0 t</span></div>
+                  </div>
+                  <div class="fuel-row">
+                    <span class="flab">Crude Oil Ydy</span>
+                    <div class="ftrack"><div class="ffill" style="width:0.09%"></div><span class="fval">4,600 t</span></div>
+                  </div>
+                  <div class="fuel-row">
+                    <span class="flab">Dist Oil Ydy</span>
+                    <div class="ftrack"><div class="ffill" style="width:0.01%"></div><span class="fval">570 t</span></div>
+                  </div>
+                  <div class="fuel-row">
+                    <span class="flab">Natural Gas Ydy</span>
+                    <div class="ftrack"><div class="ffill" style="width:0.62%"></div><span class="fval">31,192 t</span></div>
+                  </div>
+                </div>
+                <div class="fuel-axis" aria-hidden="true">
+                  <span>0</span><span>2,500,000</span><span>5,000,000</span>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <footer class="vision-foot">
+          <span>9/16/2026 6:42:44 PM</span>
+          <button type="button" class="foot-icon" title="Undo" tabindex="-1">↩</button>
+          <div class="playback">
+            <button type="button" class="play" title="Back" tabindex="-1">◀</button>
+            <span class="range">8h</span>
+            <button type="button" class="play" title="Forward" tabindex="-1">▶</button>
+          </div>
+          <span class="foot-spacer"></span>
+          <button type="button" class="new-btn" tabindex="-1">New</button>
+          <span>9/16/2026 2:42:44 PM</span>
+        </footer>
+      </section>
+
+      <section id="genericScreen" class="panel screen-panel" hidden>
+        <div class="screen-head">
+          <div>
+            <h2 id="screenTitle">Kingdom overview</h2>
+            <div class="crumbs" id="crumbs">Kingdom › Fleet</div>
+          </div>
+          <button type="button" id="refreshScreenBtn" class="ghost" data-i18n="refresh">Refresh</button>
+        </div>
+        <div id="kpiTiles" class="kpi-grid"></div>
+        <div id="screenBody" class="screen-body"></div>
+        <canvas id="trendChart" height="100"></canvas>
+        <pre id="vizMeta" class="meta"></pre>
+      </section>
+    </div>
   </main>
 
   <script src="/app/app.js"></script>

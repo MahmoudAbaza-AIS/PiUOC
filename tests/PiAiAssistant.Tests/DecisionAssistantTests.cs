@@ -52,7 +52,26 @@ public class DecisionAssistantTests
         }
     }
 
-    private static DecisionAssistant Create(out MemoryAuditStore audit, bool ollamaEnabled = false)
+    private sealed class ThinkOnlyChatClient : IChatClient
+    {
+        public void Dispose() { }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "<think>hidden reasoning</think>\n\n")));
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+    }
+
+    private static DecisionAssistant Create(out MemoryAuditStore audit, bool ollamaEnabled = false, IChatClient? chatClient = null)
     {
         var hierarchy = new AfagDemoHierarchyReader();
         var sops = new InMemorySopStore();
@@ -62,7 +81,7 @@ public class DecisionAssistantTests
         var ollama = Options.Create(new OllamaOptions { Enabled = ollamaEnabled, DefaultModel = "qwen3:8b" });
 
         return new DecisionAssistant(
-            new ThrowingChatClient(),
+            chatClient ?? new ThrowingChatClient(),
             semantic,
             briefings,
             sops,
@@ -219,5 +238,19 @@ public class DecisionAssistantTests
 
         Assert.Contains("heat rate", response.Answer, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("A1", response.Answer);
+    }
+
+    [Fact]
+    public async Task Think_only_llm_text_falls_back_to_deterministic_narrative()
+    {
+        var assistant = Create(out _, ollamaEnabled: true, chatClient: new ThinkOnlyChatClient());
+        var response = await assistant.AskAsync(new ChatAskRequest(
+            "How are we running today vs. yesterday?",
+            Persona: AssistantPersona.Executive,
+            Language: "en"));
+
+        Assert.False(string.IsNullOrWhiteSpace(response.Answer));
+        Assert.DoesNotContain("<think>", response.Answer, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("loading", response.Answer, StringComparison.OrdinalIgnoreCase);
     }
 }
